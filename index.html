@@ -343,24 +343,6 @@ main{
 }
 .row2{ display:flex; gap:10px; }
 .row2 .field{ flex:1; }
-.links-list{
-  display:flex; flex-direction:column; gap:6px; margin-bottom:8px;
-}
-.link-item{
-  display:flex; gap:6px; align-items:center;
-  background: var(--panel-2);
-  border:1px solid var(--line);
-  border-radius:7px;
-  padding: 6px 9px;
-}
-.link-item a{
-  color:#9fc7ff; text-decoration:none; font-size:12.5px;
-  flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
-}
-.link-item button{
-  background:none; border:none; color: var(--text-dim);
-  cursor:pointer; font-size: 14px; padding:0 2px;
-}
 .modal-actions{
   display:flex;
   justify-content:space-between;
@@ -456,7 +438,7 @@ main{
     </div>
     <div class="top-actions">
       <span class="status-pill"><span class="dot" id="syncDot"></span><span id="syncText">—</span></span>
-      <button class="btn ghost" id="reportBtn">Reporte del día</button>
+      <button class="btn ghost" id="reportBtn">Generar reporte</button>
       <button class="btn ghost" id="refreshBtn">Actualizar</button>
       <button class="btn ghost" id="logoutBtn">Cambiar token</button>
     </div>
@@ -502,16 +484,16 @@ main{
         <input type="text" id="f_tags" placeholder="guion, suno, urgente">
       </div>
       <div class="field">
-        <label>Links</label>
-        <div class="links-list" id="linksList"></div>
-        <div style="display:flex; gap:6px;">
-          <input type="text" id="f_newlink" placeholder="https://..." style="flex:1;">
-          <button type="button" class="btn ghost" id="addLinkBtn">+ Link</button>
-        </div>
+        <label>Recursos</label>
+        <textarea id="f_recursos" placeholder="Pega los links separados por coma o salto de línea"></textarea>
       </div>
       <div class="field">
         <label>Feedback</label>
         <textarea id="f_feedback" placeholder="Comentarios, retroalimentación sobre la tarea..."></textarea>
+      </div>
+      <div class="field">
+        <label>Resultados</label>
+        <textarea id="f_resultados" placeholder="Resultados de la tarea, para incluir en el reporte..."></textarea>
       </div>
       <div class="field">
         <label>Columna</label>
@@ -602,7 +584,6 @@ let token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
 let gistId = localStorage.getItem(STORAGE_GIST_KEY) || '';
 let editingId = null;
 let editingResourceId = null;
-let pendingLinks = [];
 let saveTimer = null;
 
 const $ = (sel) => document.querySelector(sel);
@@ -927,7 +908,6 @@ function openModal(id, defaultCol){
   const overlay = $('#cardOverlay');
   const form = $('#cardForm');
   form.reset();
-  pendingLinks = [];
 
   if(id){
     const t = state.tasks.find(x => x.id === id);
@@ -938,10 +918,11 @@ function openModal(id, defaultCol){
     $('#f_prio').value = t.priority || 'media';
     $('#f_assignee').value = t.assignee || '';
     $('#f_tags').value = (t.tags||[]).join(', ');
+    $('#f_recursos').value = (t.recursos||[]).join('\n');
     $('#f_feedback').value = t.feedback || '';
     originalFeedback = t.feedback || '';
+    $('#f_resultados').value = t.resultados || '';
     $('#f_col').value = t.col;
-    pendingLinks = [...(t.links||[])];
     $('#deleteBtn').classList.remove('hidden');
   } else {
     $('#modalTitle').textContent = 'Nueva tarea';
@@ -949,7 +930,6 @@ function openModal(id, defaultCol){
     $('#deleteBtn').classList.add('hidden');
     originalFeedback = '';
   }
-  renderLinks();
   overlay.classList.add('open');
   setTimeout(()=> $('#f_title').focus(), 50);
 }
@@ -959,34 +939,13 @@ function closeModal(){
   editingId = null;
 }
 
-function renderLinks(){
-  const list = $('#linksList');
-  list.innerHTML = '';
-  pendingLinks.forEach((url, i) => {
-    const item = document.createElement('div');
-    item.className = 'link-item';
-    item.innerHTML = `<a href="${escapeHtml(url)}" target="_blank" rel="noopener">${escapeHtml(url)}</a><button type="button" data-i="${i}">✕</button>`;
-    item.querySelector('button').addEventListener('click', () => {
-      pendingLinks.splice(i,1);
-      renderLinks();
-    });
-    list.appendChild(item);
-  });
+function parseRecursos(text){
+  return text
+    .split(/[\n,]+/)
+    .map(s => s.trim())
+    .filter(Boolean)
+    .map(s => /^https?:\/\//i.test(s) ? s : 'https://' + s);
 }
-
-$('#addLinkBtn').addEventListener('click', () => {
-  const input = $('#f_newlink');
-  let val = input.value.trim();
-  if(!val) return;
-  if(!/^https?:\/\//i.test(val)) val = 'https://' + val;
-  pendingLinks.push(val);
-  input.value = '';
-  renderLinks();
-});
-
-$('#f_newlink').addEventListener('keydown', (e) => {
-  if(e.key === 'Enter'){ e.preventDefault(); $('#addLinkBtn').click(); }
-});
 
 $('#cardForm').addEventListener('submit', (e) => {
   e.preventDefault();
@@ -1004,8 +963,9 @@ $('#cardForm').addEventListener('submit', (e) => {
     priority: $('#f_prio').value,
     assignee: $('#f_assignee').value.trim(),
     tags,
+    recursos: parseRecursos($('#f_recursos').value),
     feedback: newFeedback,
-    links: [...pendingLinks],
+    resultados: $('#f_resultados').value.trim(),
     col: $('#f_col').value,
   };
   if(editingId){
@@ -1193,6 +1153,7 @@ function generateReport(cols){
       text += `\n`;
       if(t.desc) text += `   ${t.desc}\n`;
       if(t.assignee) text += `   _${t.assignee}_\n`;
+      if(t.resultados) text += `   ✅ ${t.resultados}\n`;
     });
     text += `\n`;
   });
