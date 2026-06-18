@@ -965,11 +965,12 @@ function generateDailyReport(){
   const fechaLegible = today.toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' });
   let text = `*Reporte de producción — ${fechaLegible}*\n\n`;
   list.forEach((t, i) => {
-    text += `${i+1}. ${t.title}`;
-    if(t.assignee) text += ` (${t.assignee})`;
+    text += `${i+1}. *${t.title}*\n`;
+    if(t.desc) text += `${t.desc}\n`;
+    if(t.assignee) text += `_${t.assignee}_\n`;
     text += `\n`;
   });
-  text += `\nTotal completadas: ${list.length}`;
+  text += `Total completadas: ${list.length}`;
 
   const encoded = encodeURIComponent(text);
   const url = `https://api.whatsapp.com/send/?text=${encoded}&type=phone_number&app_absent=0`;
