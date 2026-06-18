@@ -1140,30 +1140,49 @@ function generateReport(cols){
   const fechaLegible = today.toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' });
   const colsLabel = cols.map(c => COL_LABELS[c]).join(', ');
 
-  const COL_EMOJI = { todo: '🔵', doing: '🟡', done: '🟢' };
+  // Emojis construidos via escapes unicode (inmune a problemas de encoding del archivo fuente)
+  const E = {
+    clapper: '\u{1F3AC}',   // 🎬
+    calendar: '\u{1F4C5}',  // 📅
+    folder: '\u{1F4C2}',    // 📂
+    pin: '\u{1F4CC}',       // 📌
+    memo: '\u{1F4DD}',      // 📝
+    check: '\u2705',        // ✅
+    speech: '\u{1F4AC}',    // 💬
+    person: '\u{1F464}',    // 👤
+    chart: '\u{1F4CA}',     // 📊
+    blue: '\u{1F535}',      // 🔵
+    yellow: '\u{1F7E1}',    // 🟡
+    green: '\u{1F7E2}',     // 🟢
+    white: '\u26AA',        // ⚪
+    line1: '\u2501'.repeat(15), // ━━━...
+    line2: '\u2504'.repeat(15), // ┄┄┄...
+  };
 
-  let text = `🎬 *REPORTE DE PRODUCCIÓN*\n`;
-  text += `📅 ${fechaLegible}\n`;
-  text += `📂 _Incluye: ${colsLabel}_\n`;
-  text += `━━━━━━━━━━━━━━━\n\n`;
+  const COL_EMOJI = { todo: E.blue, doing: E.yellow, done: E.green };
+
+  let text = `${E.clapper} *REPORTE DE PRODUCCIÓN*\n`;
+  text += `${E.calendar} ${fechaLegible}\n`;
+  text += `${E.folder} _Incluye: ${colsLabel}_\n`;
+  text += `${E.line1}\n\n`;
 
   sortedKeys.forEach(key => {
     const label = key === 'sin-fecha' ? 'Sin fecha' : fmtDate(key);
-    text += `📅 *${label.toUpperCase()}*\n\n`;
+    text += `${E.calendar} *${label.toUpperCase()}*\n\n`;
 
     groups[key].forEach(t => {
-      text += `${COL_EMOJI[t.col] || '⚪'} *Columna:* ${COL_LABELS[t.col]}\n`;
-      text += `📅 *Fecha:* ${t.due ? fmtDate(t.due) : 'Sin fecha'}\n`;
-      text += `📌 *Tarea:* ${t.title}\n`;
-      text += `📝 *Descripción:* ${t.desc || '—'}\n`;
-      text += `✅ *Resultados:* ${t.resultados || '—'}\n`;
-      if(t.feedback) text += `💬 *Feedback:* ${t.feedback}\n`;
-      if(t.assignee) text += `👤 _${t.assignee}_\n`;
-      text += `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n`;
+      text += `${COL_EMOJI[t.col] || E.white} *Columna:* ${COL_LABELS[t.col]}\n`;
+      text += `${E.calendar} *Fecha:* ${t.due ? fmtDate(t.due) : 'Sin fecha'}\n`;
+      text += `${E.pin} *Tarea:* ${t.title}\n`;
+      text += `${E.memo} *Descripción:* ${t.desc || '—'}\n`;
+      text += `${E.check} *Resultados:* ${t.resultados || '—'}\n`;
+      if(t.feedback) text += `${E.speech} *Feedback:* ${t.feedback}\n`;
+      if(t.assignee) text += `${E.person} _${t.assignee}_\n`;
+      text += `${E.line2}\n\n`;
     });
   });
 
-  text += `📊 *Total de tareas:* ${list.length}`;
+  text += `${E.chart} *Total de tareas:* ${list.length}`;
 
   const encoded = encodeURIComponent(text);
   const url = `https://wa.me/?text=${encoded}`;
