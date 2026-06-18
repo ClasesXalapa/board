@@ -154,10 +154,8 @@ main{
   padding: 2px 7px;
   border-radius: 20px;
 }
-.column[data-col="backlog"] .column-title{ color:#b9bcc4; }
 .column[data-col="todo"] .column-title{ color:#9fc7ff; }
 .column[data-col="doing"] .column-title{ color:#f0b94d; }
-.column[data-col="review"] .column-title{ color:#c89bf0; }
 .column[data-col="done"] .column-title{ color:#5fb98c; }
 
 .column-body{
@@ -284,7 +282,6 @@ main{
 
 /* Modal */
 .overlay{
-  position fixed;
   position: fixed;
   inset:0;
   background: rgba(10,10,12,0.6);
@@ -834,7 +831,7 @@ function openModal(id, defaultCol){
     $('#deleteBtn').classList.remove('hidden');
   } else {
     $('#modalTitle').textContent = 'Nueva tarea';
-    $('#f_col').value = defaultCol || 'backlog';
+    $('#f_col').value = defaultCol || 'todo';
     $('#deleteBtn').classList.add('hidden');
   }
   renderLinks();
