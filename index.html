@@ -109,12 +109,15 @@ header.top{
 main{
   padding: 24px 32px 60px;
   overflow-x: auto;
+  display: flex;
+  justify-content: center;
 }
 .board{
   display:flex;
   gap: 18px;
   align-items:flex-start;
   min-height: 60vh;
+  margin: 0 auto;
 }
 .column{
   background: var(--panel);
@@ -409,10 +412,23 @@ main{
 .toast.show{ opacity:1; }
 
 @media (max-width: 640px){
-  header.top{ padding: 20px; }
-  main{ padding: 16px; }
-  .board{ gap: 12px; }
-  .column{ width: 250px; min-width:250px; }
+  header.top{ padding: 18px 16px; }
+  .brand{ flex-wrap: wrap; }
+  .top-actions{ width:100%; justify-content:flex-start; }
+  main{ padding: 14px; overflow-x: visible; display:block; }
+  .board{
+    flex-direction: column;
+    gap: 16px;
+    margin: 0;
+  }
+  .column{
+    width: 100%;
+    min-width: 0;
+    max-height: none;
+  }
+  .column-body{
+    max-height: 50vh;
+  }
 }
 </style>
 </head>
