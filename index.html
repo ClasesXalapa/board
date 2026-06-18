@@ -1034,7 +1034,7 @@ $('#cardOverlay').addEventListener('click', (e) => {
 
 $('#deleteBtn').addEventListener('click', () => {
   if(!editingId) return;
-  if(!confirm('¿Eliminar esta tarea?')) return;
+  if(!checkPassword()) return;
   state.tasks = state.tasks.filter(t => t.id !== editingId);
   closeModal();
   render();
