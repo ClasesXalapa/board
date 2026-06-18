@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Metiche — Tablero</title>
+<title>Tablero de Producción Majo</title>
 <style>
 :root{
   --bg: #15161a;
@@ -251,6 +251,21 @@ main{
   align-items:center;
   gap:5px;
 }
+.card-delete-btn{
+  margin-top: 9px;
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--priority-alta);
+  font-size: 11.5px;
+  padding: 6px 0;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.card-delete-btn:hover{
+  background: rgba(255,92,57,0.1);
+  border-color: var(--priority-alta);
+}
 .avatar{
   width:18px; height:18px;
   border-radius:50%;
@@ -414,11 +429,12 @@ main{
 <div id="appScreen" class="hidden">
   <header class="top">
     <div class="brand">
-      <h1>Metiche</h1>
-      <span class="tag">Tablero de producción</span>
+      <h1>Tablero Majo</h1>
+      <span class="tag">Producción</span>
     </div>
     <div class="top-actions">
       <span class="status-pill"><span class="dot" id="syncDot"></span><span id="syncText">—</span></span>
+      <button class="btn ghost" id="reportBtn">Reporte del día</button>
       <button class="btn ghost" id="refreshBtn">Actualizar</button>
       <button class="btn ghost" id="logoutBtn">Cambiar token</button>
     </div>
@@ -474,10 +490,8 @@ main{
       <div class="field">
         <label>Columna</label>
         <select id="f_col">
-          <option value="backlog">Backlog</option>
           <option value="todo">To Do</option>
           <option value="doing">Doing</option>
-          <option value="review">Review</option>
           <option value="done">Done</option>
         </select>
       </div>
@@ -496,10 +510,8 @@ main{
 
 <script>
 const COLUMNS = [
-  {id:'backlog', label:'Backlog'},
   {id:'todo', label:'To Do'},
   {id:'doing', label:'Doing'},
-  {id:'review', label:'Review'},
   {id:'done', label:'Done'},
 ];
 
@@ -653,6 +665,7 @@ function render(){
     colEl.innerHTML = `
       <div class="column-head">
         <div class="column-title">${col.label} <span class="col-count">${tasks.length}</span></div>
+        ${col.id === 'done' ? '<button class="btn ghost" id="clearDoneBtn" style="font-size:11px; padding:5px 9px;">Limpiar</button>' : ''}
       </div>
       <div class="column-body" data-col="${col.id}"></div>
       <button class="add-card-btn" data-col="${col.id}">+ Añadir tarea</button>
@@ -680,6 +693,48 @@ function render(){
   $$('.add-card-btn').forEach(btn => {
     btn.addEventListener('click', () => openModal(null, btn.dataset.col));
   });
+  $$('.card-delete-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      deleteTaskWithPassword(btn.dataset.id);
+    });
+  });
+  const clearBtn = $('#clearDoneBtn');
+  if(clearBtn){
+    clearBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearDoneColumn();
+    });
+  }
+}
+
+function checkPassword(){
+  const pass = prompt('Escribe la contraseña para confirmar:');
+  if(pass === null) return false;
+  if(pass !== 'josue'){
+    showToast('Contraseña incorrecta');
+    return false;
+  }
+  return true;
+}
+
+function deleteTaskWithPassword(id){
+  if(!checkPassword()) return;
+  state.tasks = state.tasks.filter(t => t.id !== id);
+  render();
+  scheduleSave();
+  showToast('Tarea eliminada');
+}
+
+function clearDoneColumn(){
+  const doneTasks = state.tasks.filter(t => t.col === 'done');
+  if(doneTasks.length === 0){ showToast('La columna Done ya está vacía'); return; }
+  if(!checkPassword()) return;
+  if(!confirm(`¿Eliminar ${doneTasks.length} tarea(s) de Done? Esta acción no se puede deshacer.`)) return;
+  state.tasks = state.tasks.filter(t => t.col !== 'done');
+  render();
+  scheduleSave();
+  showToast('Columna Done vaciada');
 }
 
 function renderCard(t){
@@ -697,6 +752,7 @@ function renderCard(t){
       ${t.due ? `<span class="due ${dc}">📅 ${fmtDate(t.due)}</span>` : ''}
       ${t.assignee ? `<span class="assignee"><span class="avatar">${initials(t.assignee)}</span>${escapeHtml(t.assignee)}</span>` : ''}
     </div>
+    ${t.col === 'done' ? `<button type="button" class="card-delete-btn" data-id="${t.id}">Eliminar registro</button>` : ''}
   `;
   return div;
 }
@@ -731,6 +787,9 @@ function onDrop(e){
   const task = state.tasks.find(t => t.id === draggedId);
   if(task && task.col !== newCol){
     task.col = newCol;
+    if(newCol === 'done'){
+      task.completedAt = new Date().toISOString();
+    }
     render();
     scheduleSave();
   }
@@ -816,9 +875,17 @@ $('#cardForm').addEventListener('submit', (e) => {
   };
   if(editingId){
     const t = state.tasks.find(x => x.id === editingId);
+    const wasNotDone = t.col !== 'done';
     Object.assign(t, data);
+    if(data.col === 'done' && wasNotDone){
+      t.completedAt = new Date().toISOString();
+    }
   } else {
-    state.tasks.push({ id: uid(), ...data });
+    const newTask = { id: uid(), ...data };
+    if(data.col === 'done'){
+      newTask.completedAt = new Date().toISOString();
+    }
+    state.tasks.push(newTask);
   }
   closeModal();
   render();
@@ -864,6 +931,34 @@ $('#logoutBtn').addEventListener('click', () => {
 });
 
 $('#refreshBtn').addEventListener('click', () => loadBoard());
+
+$('#reportBtn').addEventListener('click', () => generateDailyReport());
+
+function generateDailyReport(){
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+  const doneToday = state.tasks.filter(t => t.col === 'done' && t.completedAt && t.completedAt.slice(0,10) === todayStr);
+  const doneTodayFallback = doneToday.length ? doneToday : state.tasks.filter(t => t.col === 'done');
+
+  const list = doneTodayFallback;
+  if(list.length === 0){
+    showToast('No hay tareas en Done para reportar');
+    return;
+  }
+
+  const fechaLegible = today.toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' });
+  let text = `*Reporte de producción — ${fechaLegible}*\n\n`;
+  list.forEach((t, i) => {
+    text += `${i+1}. ${t.title}`;
+    if(t.assignee) text += ` (${t.assignee})`;
+    text += `\n`;
+  });
+  text += `\nTotal completadas: ${list.length}`;
+
+  const encoded = encodeURIComponent(text);
+  const url = `https://api.whatsapp.com/send/?text=${encoded}&type=phone_number&app_absent=0`;
+  window.open(url, '_blank');
+}
 
 async function boot(){
   $('#setupScreen').classList.add('hidden');
