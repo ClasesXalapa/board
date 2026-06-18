@@ -267,6 +267,15 @@ main{
   background: rgba(255,92,57,0.1);
   border-color: var(--priority-alta);
 }
+.resource-link{
+  display:inline-block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: #9fc7ff;
+  text-decoration: none;
+}
+.resource-link:hover{ text-decoration: underline; }
+.column[data-col="resources"] .column-title{ color: #c89bf0; }
 .avatar{
   width:18px; height:18px;
   border-radius:50%;
@@ -521,6 +530,58 @@ main{
 
 <div class="toast" id="toast"></div>
 
+<div class="overlay" id="resourceOverlay">
+  <div class="modal">
+    <h2 id="resourceModalTitle">Nuevo recurso</h2>
+    <form id="resourceForm">
+      <div class="field">
+        <label>Título</label>
+        <input type="text" id="r_title" required placeholder="Ej. Sheet de calendario de contenido">
+      </div>
+      <div class="field">
+        <label>Recurso (link)</label>
+        <input type="text" id="r_url" placeholder="https://docs.google.com/...">
+      </div>
+      <div class="field">
+        <label>Descripción</label>
+        <textarea id="r_desc" placeholder="Para qué sirve, notas..."></textarea>
+      </div>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="resourceDeleteBtn">Eliminar</button>
+        <div class="right">
+          <button type="button" class="btn ghost" id="resourceCancelBtn">Cancelar</button>
+          <button type="submit" class="btn primary">Guardar</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="overlay" id="reportOverlay">
+  <div class="modal">
+    <h2>Generar reporte</h2>
+    <p style="color:var(--text-dim); font-size:13px; margin-top:-8px;">Elige qué columnas incluir.</p>
+    <div class="field" style="margin-top:16px;">
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:10px;">
+        <input type="checkbox" id="rep_todo" style="width:auto;"> To Do
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:10px;">
+        <input type="checkbox" id="rep_doing" style="width:auto;"> Doing
+      </label>
+      <label style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+        <input type="checkbox" id="rep_done" style="width:auto;" checked> Done
+      </label>
+    </div>
+    <div class="modal-actions">
+      <div></div>
+      <div class="right">
+        <button type="button" class="btn ghost" id="reportCancelBtn">Cancelar</button>
+        <button type="button" class="btn primary" id="reportGenerateBtn">Generar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 const COLUMNS = [
   {id:'todo', label:'To Do'},
@@ -532,10 +593,11 @@ const GIST_DESC = 'metiche-board-data';
 const STORAGE_TOKEN_KEY = 'metiche_gh_token';
 const STORAGE_GIST_KEY = 'metiche_gist_id';
 
-let state = { tasks: [] };
+let state = { tasks: [], resources: [] };
 let token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
 let gistId = localStorage.getItem(STORAGE_GIST_KEY) || '';
 let editingId = null;
+let editingResourceId = null;
 let pendingLinks = [];
 let saveTimer = null;
 
@@ -618,6 +680,7 @@ async function loadBoard(){
   const fileContent = gist.files['board.json'].content;
   state = JSON.parse(fileContent || '{"tasks":[]}');
   if(!state.tasks) state.tasks = [];
+  if(!state.resources) state.resources = [];
   setSync('ok');
   render();
 }
@@ -692,6 +755,8 @@ function render(){
     board.appendChild(colEl);
   });
 
+  renderResourcesColumn(board);
+
   // drag & drop
   $$('.card').forEach(card => {
     card.addEventListener('dragstart', onDragStart);
@@ -719,6 +784,47 @@ function render(){
       clearDoneColumn();
     });
   }
+
+  // recursos
+  $$('.resource-card').forEach(card => {
+    card.addEventListener('click', () => openResourceModal(card.dataset.id));
+  });
+  const addResBtn = $('#addResourceBtn');
+  if(addResBtn){
+    addResBtn.addEventListener('click', () => openResourceModal(null));
+  }
+}
+
+function renderResourcesColumn(board){
+  const colEl = document.createElement('div');
+  colEl.className = 'column';
+  colEl.dataset.col = 'resources';
+  colEl.innerHTML = `
+    <div class="column-head">
+      <div class="column-title">Recursos <span class="col-count">${state.resources.length}</span></div>
+    </div>
+    <div class="column-body" data-col="resources"></div>
+    <button class="add-card-btn" id="addResourceBtn">+ Añadir recurso</button>
+  `;
+  const body = colEl.querySelector('.column-body');
+  if(state.resources.length === 0){
+    body.innerHTML = '<div class="empty-col">Sin recursos</div>';
+  } else {
+    state.resources.forEach(r => body.appendChild(renderResourceCard(r)));
+  }
+  board.appendChild(colEl);
+}
+
+function renderResourceCard(r){
+  const div = document.createElement('div');
+  div.className = 'card resource-card';
+  div.dataset.id = r.id;
+  div.innerHTML = `
+    <p class="card-title">${escapeHtml(r.title)}</p>
+    ${r.desc ? `<p class="card-desc">${escapeHtml(r.desc)}</p>` : ''}
+    ${r.url ? `<a class="resource-link" href="${escapeHtml(r.url)}" target="_blank" rel="noopener" onclick="event.stopPropagation()">🔗 Abrir recurso</a>` : ''}
+  `;
+  return div;
 }
 
 function checkPassword(){
@@ -919,6 +1025,68 @@ $('#deleteBtn').addEventListener('click', () => {
   scheduleSave();
 });
 
+/* ---------- Modal de Recursos ---------- */
+
+function openResourceModal(id){
+  editingResourceId = id;
+  const overlay = $('#resourceOverlay');
+  const form = $('#resourceForm');
+  form.reset();
+
+  if(id){
+    const r = state.resources.find(x => x.id === id);
+    $('#resourceModalTitle').textContent = 'Editar recurso';
+    $('#r_title').value = r.title || '';
+    $('#r_url').value = r.url || '';
+    $('#r_desc').value = r.desc || '';
+    $('#resourceDeleteBtn').classList.remove('hidden');
+  } else {
+    $('#resourceModalTitle').textContent = 'Nuevo recurso';
+    $('#resourceDeleteBtn').classList.add('hidden');
+  }
+  overlay.classList.add('open');
+  setTimeout(()=> $('#r_title').focus(), 50);
+}
+
+function closeResourceModal(){
+  $('#resourceOverlay').classList.remove('open');
+  editingResourceId = null;
+}
+
+$('#resourceForm').addEventListener('submit', (e) => {
+  e.preventDefault();
+  let url = $('#r_url').value.trim();
+  if(url && !/^https?:\/\//i.test(url)) url = 'https://' + url;
+  const data = {
+    title: $('#r_title').value.trim(),
+    url,
+    desc: $('#r_desc').value.trim(),
+  };
+  if(editingResourceId){
+    const r = state.resources.find(x => x.id === editingResourceId);
+    Object.assign(r, data);
+  } else {
+    state.resources.push({ id: uid(), ...data });
+  }
+  closeResourceModal();
+  render();
+  scheduleSave();
+});
+
+$('#resourceCancelBtn').addEventListener('click', closeResourceModal);
+$('#resourceOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'resourceOverlay') closeResourceModal();
+});
+
+$('#resourceDeleteBtn').addEventListener('click', () => {
+  if(!editingResourceId) return;
+  if(!confirm('¿Eliminar este recurso?')) return;
+  state.resources = state.resources.filter(r => r.id !== editingResourceId);
+  closeResourceModal();
+  render();
+  scheduleSave();
+});
+
 /* ---------- Setup / auth ---------- */
 
 $('#connectBtn').addEventListener('click', async () => {
@@ -945,32 +1113,78 @@ $('#logoutBtn').addEventListener('click', () => {
 
 $('#refreshBtn').addEventListener('click', () => loadBoard());
 
-$('#reportBtn').addEventListener('click', () => generateDailyReport());
+$('#reportBtn').addEventListener('click', () => {
+  $('#reportOverlay').classList.add('open');
+});
 
-function generateDailyReport(){
-  const today = new Date();
-  const todayStr = today.toISOString().slice(0,10);
-  const doneToday = state.tasks.filter(t => t.col === 'done' && t.completedAt && t.completedAt.slice(0,10) === todayStr);
-  const doneTodayFallback = doneToday.length ? doneToday : state.tasks.filter(t => t.col === 'done');
+$('#reportCancelBtn').addEventListener('click', () => {
+  $('#reportOverlay').classList.remove('open');
+});
 
-  const list = doneTodayFallback;
+$('#reportOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'reportOverlay') $('#reportOverlay').classList.remove('open');
+});
+
+$('#reportGenerateBtn').addEventListener('click', () => {
+  const cols = [];
+  if($('#rep_todo').checked) cols.push('todo');
+  if($('#rep_doing').checked) cols.push('doing');
+  if($('#rep_done').checked) cols.push('done');
+  if(cols.length === 0){
+    showToast('Elige al menos una columna');
+    return;
+  }
+  $('#reportOverlay').classList.remove('open');
+  generateReport(cols);
+});
+
+const COL_LABELS = { todo: 'To Do', doing: 'Doing', done: 'Done' };
+
+function generateReport(cols){
+  const list = state.tasks.filter(t => cols.includes(t.col));
   if(list.length === 0){
-    showToast('No hay tareas en Done para reportar');
+    showToast('No hay tareas en las columnas elegidas');
     return;
   }
 
+  // agrupar por fecha de entrega (due). Sin fecha -> "Sin fecha"
+  const groups = {};
+  list.forEach(t => {
+    const key = t.due || 'sin-fecha';
+    if(!groups[key]) groups[key] = [];
+    groups[key].push(t);
+  });
+
+  const sortedKeys = Object.keys(groups).sort((a,b) => {
+    if(a === 'sin-fecha') return 1;
+    if(b === 'sin-fecha') return -1;
+    return a.localeCompare(b);
+  });
+
+  const today = new Date();
   const fechaLegible = today.toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' });
-  let text = `*Reporte de producción — ${fechaLegible}*\n\n`;
-  list.forEach((t, i) => {
-    text += `${i+1}. *${t.title}*\n`;
-    if(t.desc) text += `${t.desc}\n`;
-    if(t.assignee) text += `_${t.assignee}_\n`;
+  const colsLabel = cols.map(c => COL_LABELS[c]).join(', ');
+
+  let text = `*Reporte de producción — ${fechaLegible}*\n`;
+  text += `_Columnas: ${colsLabel}_\n\n`;
+
+  sortedKeys.forEach(key => {
+    const label = key === 'sin-fecha' ? 'Sin fecha' : fmtDate(key);
+    text += `📅 *${label}*\n`;
+    groups[key].forEach(t => {
+      text += `• ${t.title}`;
+      if(t.col !== 'done') text += ` _(${COL_LABELS[t.col]})_`;
+      text += `\n`;
+      if(t.desc) text += `   ${t.desc}\n`;
+      if(t.assignee) text += `   _${t.assignee}_\n`;
+    });
     text += `\n`;
   });
-  text += `Total completadas: ${list.length}`;
+
+  text += `Total: ${list.length}`;
 
   const encoded = encodeURIComponent(text);
-  const url = `https://api.whatsapp.com/send/?text=${encoded}&type=phone_number&app_absent=0`;
+  const url = `https://wa.me/?text=${encoded}`;
   window.open(url, '_blank');
 }
 
