@@ -510,6 +510,10 @@ main{
         </div>
       </div>
       <div class="field">
+        <label>Feedback</label>
+        <textarea id="f_feedback" placeholder="Comentarios, retroalimentación sobre la tarea..."></textarea>
+      </div>
+      <div class="field">
         <label>Columna</label>
         <select id="f_col">
           <option value="todo">To Do</option>
@@ -916,6 +920,8 @@ function onDrop(e){
 
 /* ---------- Modal ---------- */
 
+let originalFeedback = '';
+
 function openModal(id, defaultCol){
   editingId = id;
   const overlay = $('#cardOverlay');
@@ -932,6 +938,8 @@ function openModal(id, defaultCol){
     $('#f_prio').value = t.priority || 'media';
     $('#f_assignee').value = t.assignee || '';
     $('#f_tags').value = (t.tags||[]).join(', ');
+    $('#f_feedback').value = t.feedback || '';
+    originalFeedback = t.feedback || '';
     $('#f_col').value = t.col;
     pendingLinks = [...(t.links||[])];
     $('#deleteBtn').classList.remove('hidden');
@@ -939,6 +947,7 @@ function openModal(id, defaultCol){
     $('#modalTitle').textContent = 'Nueva tarea';
     $('#f_col').value = defaultCol || 'todo';
     $('#deleteBtn').classList.add('hidden');
+    originalFeedback = '';
   }
   renderLinks();
   overlay.classList.add('open');
@@ -982,6 +991,12 @@ $('#f_newlink').addEventListener('keydown', (e) => {
 $('#cardForm').addEventListener('submit', (e) => {
   e.preventDefault();
   const tags = $('#f_tags').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const newFeedback = $('#f_feedback').value.trim();
+
+  if(newFeedback !== originalFeedback){
+    if(!checkPassword()) return;
+  }
+
   const data = {
     title: $('#f_title').value.trim(),
     desc: $('#f_desc').value.trim(),
@@ -989,6 +1004,7 @@ $('#cardForm').addEventListener('submit', (e) => {
     priority: $('#f_prio').value,
     assignee: $('#f_assignee').value.trim(),
     tags,
+    feedback: newFeedback,
     links: [...pendingLinks],
     col: $('#f_col').value,
   };
