@@ -768,7 +768,7 @@ function render(){
     body.addEventListener('dragleave', onDragLeave);
     body.addEventListener('drop', onDrop);
   });
-  $$('.add-card-btn').forEach(btn => {
+  $$('.add-card-btn:not(#addResourceBtn)').forEach(btn => {
     btn.addEventListener('click', () => openModal(null, btn.dataset.col));
   });
   $$('.card-delete-btn').forEach(btn => {
