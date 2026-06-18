@@ -434,7 +434,6 @@ main{
   <header class="top">
     <div class="brand">
       <h1>Tablero Majo</h1>
-      <span class="tag">Producción</span>
     </div>
     <div class="top-actions">
       <span class="status-pill"><span class="dot" id="syncDot"></span><span id="syncText">—</span></span>
@@ -1141,24 +1140,30 @@ function generateReport(cols){
   const fechaLegible = today.toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' });
   const colsLabel = cols.map(c => COL_LABELS[c]).join(', ');
 
-  let text = `*Reporte de producción — ${fechaLegible}*\n`;
-  text += `_Columnas: ${colsLabel}_\n\n`;
+  const COL_EMOJI = { todo: '🔵', doing: '🟡', done: '🟢' };
+
+  let text = `🎬 *REPORTE DE PRODUCCIÓN*\n`;
+  text += `🗓️ ${fechaLegible}\n`;
+  text += `📂 _Incluye: ${colsLabel}_\n`;
+  text += `━━━━━━━━━━━━━━━\n\n`;
 
   sortedKeys.forEach(key => {
     const label = key === 'sin-fecha' ? 'Sin fecha' : fmtDate(key);
-    text += `📅 *${label}*\n`;
+    text += `📅 *${label.toUpperCase()}*\n\n`;
+
     groups[key].forEach(t => {
-      text += `• ${t.title}`;
-      if(t.col !== 'done') text += ` _(${COL_LABELS[t.col]})_`;
-      text += `\n`;
-      if(t.desc) text += `   ${t.desc}\n`;
-      if(t.assignee) text += `   _${t.assignee}_\n`;
-      if(t.resultados) text += `   ✅ ${t.resultados}\n`;
+      text += `${COL_EMOJI[t.col] || '⚪'} *Columna:* ${COL_LABELS[t.col]}\n`;
+      text += `📅 *Fecha:* ${t.due ? fmtDate(t.due) : 'Sin fecha'}\n`;
+      text += `📌 *Tarea:* ${t.title}\n`;
+      text += `📝 *Descripción:* ${t.desc || '—'}\n`;
+      text += `✅ *Resultados:* ${t.resultados || '—'}\n`;
+      if(t.feedback) text += `💬 *Feedback:* ${t.feedback}\n`;
+      if(t.assignee) text += `👤 _${t.assignee}_\n`;
+      text += `┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄\n\n`;
     });
-    text += `\n`;
   });
 
-  text += `Total: ${list.length}`;
+  text += `📊 *Total de tareas:* ${list.length}`;
 
   const encoded = encodeURIComponent(text);
   const url = `https://wa.me/?text=${encoded}`;
