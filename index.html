@@ -107,6 +107,14 @@ header.top{
   padding: 7px 13px;
 }
 .btn.only-btn:hover{ background: rgba(240,185,77,0.1); }
+.btn.videos-btn{
+  background: transparent;
+  border-color: #64d2e6;
+  color: #64d2e6;
+  font-size: 12px;
+  padding: 7px 13px;
+}
+.btn.videos-btn:hover{ background: rgba(100,210,230,0.1); }
 .status-pill{
   font-size: 12px;
   color: var(--text-dim);
@@ -597,6 +605,7 @@ main{
       <button class="btn ghost" id="reportBtn">Generar reporte</button>
       <button class="btn ghost" id="refreshBtn">Actualizar</button>
       <button class="btn only-btn" id="onlyBtn">⚡ Generar tareas Only</button>
+      <button class="btn videos-btn" id="videosBtn">🎬 Banco de Videos</button>
       <button class="btn admin-btn" id="adminBtn">⚙ Admin</button>
       <button class="btn ghost" id="logoutBtn">Cambiar token</button>
     </div>
@@ -1697,6 +1706,12 @@ $('#logoutBtn').addEventListener('click', () => {
 });
 
 $('#refreshBtn').addEventListener('click', () => loadBoard());
+
+$('#videosBtn').addEventListener('click', () => {
+  // Guarda el gistId en localStorage para que videos.html lo reutilice
+  if(gistId) localStorage.setItem('metiche_gist_id', gistId);
+  window.open('videos.html', '_blank');
+});
 
 $('#reportBtn').addEventListener('click', () => {
   $('#reportOverlay').classList.add('open');
