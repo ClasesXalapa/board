@@ -303,7 +303,31 @@ td.td-date{ color:#444753; font-size:12px; white-space:nowrap; }
 .dot-c4{ background:#ff9664; } .dot-c5{ background:#64d2e6; }
 .dot-c6{ background:#ffb464; } .dot-c7{ background:#b4f078; }
 
-/* Setup screen */
+.cat-filter-select{
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: var(--font);
+  cursor: pointer;
+  min-width: 180px;
+}
+.cat-filter-select:focus{ outline:none; border-color:var(--cyan); }
+
+.btn-del-video{
+  background: transparent;
+  border: 1px solid var(--line);
+  color: var(--accent);
+  font-size: 11.5px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  font-family: var(--font);
+}
+.btn-del-video:hover{ background: var(--accent-soft); border-color: var(--accent); }
 .setup-box{
   max-width:440px; margin:80px auto;
   background:var(--panel); border:1px solid var(--line);
@@ -361,7 +385,7 @@ td.td-date{ color:#444753; font-size:12px; white-space:nowrap; }
 
   <div class="tabs">
     <button class="tab-btn active" data-view="add">＋ Agregar video</button>
-    <button class="tab-btn" data-view="cats">📂 Por categoría</button>
+    <button class="tab-btn" data-view="cats">🎬 Banco de Videos</button>
   </div>
 
   <!-- Vista: Agregar -->
@@ -369,7 +393,6 @@ td.td-date{ color:#444753; font-size:12px; white-space:nowrap; }
     <div class="form-wrap">
       <div class="form-card">
         <h2>Agregar video</h2>
-        <p class="sub">Llena los campos y guarda. El video queda sincronizado en el Gist.</p>
         <div class="field">
           <label>Link del video ✱</label>
           <input type="url" id="f_link" placeholder="https://youtube.com/watch?v=...">
@@ -395,16 +418,15 @@ td.td-date{ color:#444753; font-size:12px; white-space:nowrap; }
     </div>
   </div>
 
-  <!-- Vista: Por categoría -->
+  <!-- Vista: Banco de Videos -->
   <div class="view" id="view-cats">
     <div class="cats-wrap">
       <div class="cats-toolbar">
-        <h2>Videos por categoría <span id="totalCount" style="color:var(--text-dim); font-weight:400; font-size:14px;"></span></h2>
+        <h2>Banco de Videos <span id="totalCount" style="color:var(--text-dim); font-weight:400; font-size:14px;"></span></h2>
         <div class="toolbar-right">
-          <div class="search-wrap">
-            <span class="search-icon">🔍</span>
-            <input type="text" id="searchInput" placeholder="Buscar...">
-          </div>
+          <select id="filterCat" class="cat-filter-select">
+            <option value="">Todas las categorías</option>
+          </select>
         </div>
       </div>
       <div id="catsContent">
@@ -735,11 +757,104 @@ function renderCatsView(){
   });
 }
 
-$('#searchInput') && $('#searchInput').addEventListener('input', renderCatsView);
+/* ═══════════════════════
+   VISTA BANCO DE VIDEOS — tabla única con filtro y eliminar
+═══════════════════════ */
+function renderFilterDropdown(){
+  const sel = $('#filterCat');
+  if(!sel) return;
+  const current = sel.value;
+  sel.innerHTML = '<option value="">Todas las categorías</option>';
+  const cats = state.categories.length
+    ? state.categories
+    : [...new Set(state.videos.map(v => v.cat))];
+  cats.forEach(cat => {
+    const opt = document.createElement('option');
+    opt.value = cat; opt.textContent = cat;
+    if(cat === current) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
 
-/* Activar búsqueda también cuando el campo existe en el DOM */
-document.addEventListener('input', e => {
-  if(e.target.id === 'searchInput') renderCatsView();
+function renderCatsView(){
+  const content  = $('#catsContent');
+  const total    = $('#totalCount');
+  const filterEl = $('#filterCat');
+  const filterCat = filterEl ? filterEl.value : '';
+
+  renderFilterDropdown();
+
+  if(!state.videos || state.videos.length === 0){
+    content.innerHTML = '<div class="empty-state"><div class="ei">🎬</div><p>Sin videos aún. ¡Agrega el primero!</p></div>';
+    if(total) total.textContent = '';
+    return;
+  }
+
+  const filtered = filterCat
+    ? state.videos.filter(v => v.cat === filterCat)
+    : state.videos;
+
+  if(filtered.length === 0){
+    content.innerHTML = '<div class="empty-state"><div class="ei">🔍</div><p>Sin videos en esta categoría.</p></div>';
+    if(total) total.textContent = '(0)';
+    return;
+  }
+
+  if(total) total.textContent = `(${filtered.length})`;
+
+  content.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'vt-wrap';
+  wrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Categoría</th>
+          <th>Link</th>
+          <th>Descripción</th>
+          <th>Notas</th>
+          <th>Fecha</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="videoTableBody"></tbody>
+    </table>
+  `;
+  content.appendChild(wrap);
+
+  const tbody = wrap.querySelector('#videoTableBody');
+  filtered.forEach(v => {
+    const idx = catIndex(v.cat);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="cat-badge cat-c${idx}">${esc(v.cat||'—')}</span></td>
+      <td class="td-link"><a href="${esc(v.link)}" target="_blank" rel="noopener">${esc(v.link.length>48 ? v.link.slice(0,48)+'…' : v.link)}</a></td>
+      <td class="td-desc">${esc(v.desc||'—')}</td>
+      <td class="td-notes">${esc(v.notes||'—')}</td>
+      <td class="td-date">${fmtDate(v.fecha)}</td>
+      <td><button class="btn-del-video" data-id="${v.id}">Eliminar</button></td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  tbody.querySelectorAll('.btn-del-video').forEach(btn => {
+    btn.addEventListener('click', () => deleteVideo(btn.dataset.id));
+  });
+}
+
+function deleteVideo(id){
+  checkPassword().then(ok => {
+    if(!ok) return;
+    state.videos = state.videos.filter(v => v.id !== id);
+    scheduleSave();
+    renderCatsView();
+    toast('Video eliminado');
+  });
+}
+
+// Evento del dropdown
+document.addEventListener('change', e => {
+  if(e.target.id === 'filterCat') renderCatsView();
 });
 
 /* ═══════════════════════
