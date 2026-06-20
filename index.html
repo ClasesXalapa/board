@@ -99,6 +99,14 @@ header.top{
   padding: 7px 13px;
 }
 .btn.admin-btn:hover{ background: rgba(200,155,240,0.1); }
+.btn.only-btn{
+  background: transparent;
+  border-color: #f0b94d;
+  color: #f0b94d;
+  font-size: 12px;
+  padding: 7px 13px;
+}
+.btn.only-btn:hover{ background: rgba(240,185,77,0.1); }
 .status-pill{
   font-size: 12px;
   color: var(--text-dim);
@@ -588,6 +596,7 @@ main{
       <span class="status-pill"><span class="dot" id="syncDot"></span><span id="syncText">—</span></span>
       <button class="btn ghost" id="reportBtn">Generar reporte</button>
       <button class="btn ghost" id="refreshBtn">Actualizar</button>
+      <button class="btn only-btn" id="onlyBtn">⚡ Generar tareas Only</button>
       <button class="btn admin-btn" id="adminBtn">⚙ Admin</button>
       <button class="btn ghost" id="logoutBtn">Cambiar token</button>
     </div>
@@ -655,6 +664,41 @@ main{
         </div>
       </div>
     </form>
+  </div>
+</div>
+
+<!-- Modal Generar tareas Only -->
+<div class="overlay" id="onlyOverlay">
+  <div class="modal" style="max-width:420px;">
+    <h2 style="margin-bottom:4px;">⚡ Tareas Only</h2>
+    <p style="color:var(--text-dim); font-size:13px; margin-bottom:20px; line-height:1.5;">Se crearán 3 tareas de seguimiento de leads con categoría <strong style="color:#f0b94d;">Only</strong>, prioridad media. Solo elige fecha y responsable.</p>
+    <div class="row2">
+      <div class="field">
+        <label>Fecha de entrega</label>
+        <input type="date" id="only_due">
+      </div>
+      <div class="field">
+        <label>Responsable</label>
+        <select id="only_assignee">
+          <option value="">— Sin asignar —</option>
+        </select>
+      </div>
+    </div>
+    <div style="background:var(--panel-2); border:1px solid var(--line); border-radius:8px; padding:14px; margin-bottom:6px;">
+      <p style="font-size:12px; color:var(--text-dim); margin-bottom:10px; letter-spacing:.03em; text-transform:uppercase;">Tareas que se crearán</p>
+      <div style="display:flex; flex-direction:column; gap:8px;">
+        <div style="font-size:13px; display:flex; gap:8px; align-items:flex-start;"><span style="color:#f0b94d; flex-shrink:0;">📊</span><span><strong>Revisión de Leads — Ari</strong><br><span style="color:var(--text-dim); font-size:12px;">Revisar y auditar los leads gestionados por Ari, reportando fechas y estado de cada uno.</span></span></div>
+        <div style="font-size:13px; display:flex; gap:8px; align-items:flex-start; border-top:1px solid var(--line); padding-top:8px;"><span style="color:#f0b94d; flex-shrink:0;">📋</span><span><strong>Reporte de Leads Calificados — Ari</strong><br><span style="color:var(--text-dim); font-size:12px;">Reporte de leads calificados por Ari, cruzando con los leads registrados por Majo.</span></span></div>
+        <div style="font-size:13px; display:flex; gap:8px; align-items:flex-start; border-top:1px solid var(--line); padding-top:8px;"><span style="color:#f0b94d; flex-shrink:0;">🔍</span><span><strong>Búsqueda de Leads</strong><br><span style="color:var(--text-dim); font-size:12px;">Prospección de nuevos leads, indicando total agregados y duplicados detectados.</span></span></div>
+      </div>
+    </div>
+    <div class="modal-actions" style="margin-top:18px;">
+      <div></div>
+      <div class="right">
+        <button type="button" class="btn ghost" id="onlyCancelBtn">Cancelar</button>
+        <button type="button" class="btn only-btn" id="onlyCreateBtn">⚡ Crear las 3 tareas</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -1270,6 +1314,10 @@ function openModal(id, defaultCol){
   const form = $('#cardForm');
   form.reset();
 
+  // campos que se ocultan solo en tareas Only específicas
+  const recursosField = $('#f_recursos').closest('.field');
+  const feedbackField = $('#f_feedback').closest('.field');
+
   if(id){
     const t = state.tasks.find(x => x.id === id);
     $('#modalTitle').textContent = 'Editar tarea';
@@ -1284,12 +1332,23 @@ function openModal(id, defaultCol){
     originalFeedback = t.feedback || '';
     $('#f_resultados').value = t.resultados || '';
     $('#deleteBtn').classList.remove('hidden');
+
+    // ocultar Recursos y Feedback solo si es tarea Only marcada
+    if(t.isOnlyTask){
+      recursosField.style.display = 'none';
+      feedbackField.style.display = 'none';
+    } else {
+      recursosField.style.display = '';
+      feedbackField.style.display = '';
+    }
   } else {
     $('#modalTitle').textContent = 'Nueva tarea';
     buildAssigneeSelect('');
     buildTagsCheckboxes([]);
     $('#deleteBtn').classList.add('hidden');
     originalFeedback = '';
+    recursosField.style.display = '';
+    feedbackField.style.display = '';
   }
   overlay.classList.add('open');
   setTimeout(()=> $('#f_title').focus(), 50);
@@ -1348,7 +1407,9 @@ function saveTask(tags, newFeedback){
   if(editingId){
     const t = state.tasks.find(x => x.id === editingId);
     const wasNotDone = t.col !== 'done';
+    const wasOnlyTask = t.isOnlyTask; // preservar flag
     Object.assign(t, data);
+    if(wasOnlyTask) t.isOnlyTask = true;
     if(data.col === 'done' && wasNotDone){
       t.completedAt = new Date().toISOString();
     }
@@ -1364,7 +1425,75 @@ function saveTask(tags, newFeedback){
   scheduleSave();
 }
 
-$('#cancelBtn').addEventListener('click', closeModal);
+/* ---------- Modal Only ---------- */
+
+const ONLY_TASKS = [
+  {
+    title: '📊 Revisión de Leads — Ari',
+    desc: 'Revisar y auditar los leads gestionados por Ari.\n\n✅ Registrar en Resultados:\n• Fecha de cada lead\n• Estado: Yes / No / Unable to find',
+    tags: ['Only'],
+    isOnlyTask: true,
+  },
+  {
+    title: '📋 Reporte de Leads Calificados — Ari',
+    desc: 'Generar reporte de los leads calificados por Ari.\n\n✅ Registrar en Resultados:\n• Fecha de registro de cada lead agregado por Majo\n• Confirmación de cuáles fueron calificados por Ari',
+    tags: ['Only'],
+    isOnlyTask: true,
+  },
+  {
+    title: '🔍 Búsqueda de Leads',
+    desc: 'Prospección y búsqueda de nuevos leads.\n\n✅ Registrar en Resultados:\n• Número total de leads agregados\n• Número de leads repetidos o duplicados detectados',
+    tags: ['Only'],
+    isOnlyTask: true,
+  },
+];
+
+function openOnlyModal(){
+  const sel = $('#only_assignee');
+  sel.innerHTML = '<option value="">— Sin asignar —</option>';
+  state.responsables.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r; opt.textContent = r;
+    sel.appendChild(opt);
+  });
+  $('#only_due').value = '';
+  $('#onlyOverlay').classList.add('open');
+}
+
+function closeOnlyModal(){
+  $('#onlyOverlay').classList.remove('open');
+}
+
+$('#onlyBtn').addEventListener('click', openOnlyModal);
+$('#onlyCancelBtn').addEventListener('click', closeOnlyModal);
+$('#onlyOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'onlyOverlay') closeOnlyModal();
+});
+
+$('#onlyCreateBtn').addEventListener('click', () => {
+  const due = $('#only_due').value;
+  const assignee = $('#only_assignee').value;
+  ONLY_TASKS.forEach(t => {
+    state.tasks.push({
+      id: uid(),
+      title: t.title,
+      desc: t.desc,
+      due,
+      priority: 'media',
+      assignee,
+      tags: t.tags,
+      recursos: [],
+      feedback: '',
+      resultados: '',
+      col: 'todo',
+      isOnlyTask: true,
+    });
+  });
+  closeOnlyModal();
+  render();
+  scheduleSave();
+  showToast('✅ 3 tareas Only creadas');
+});
 $('#cardOverlay').addEventListener('click', (e) => {
   if(e.target.id === 'cardOverlay') closeModal();
 });
