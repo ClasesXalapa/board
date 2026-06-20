@@ -295,12 +295,6 @@ td.td-date{color:var(--text-muted);font-size:12px;white-space:nowrap;}
             <label>Tipo ✱</label>
             <select id="f_tipo">
               <option value="">— Selecciona —</option>
-              <option value="Video">Video</option>
-              <option value="Imagen">Imagen</option>
-              <option value="Perfil">Perfil</option>
-              <option value="Documento">Documento</option>
-              <option value="Audio">Audio</option>
-              <option value="Otro">Otro</option>
             </select>
           </div>
           <div class="field">
@@ -337,12 +331,6 @@ td.td-date{color:var(--text-muted);font-size:12px;white-space:nowrap;}
         <div class="toolbar-right">
           <select id="filterTipo" class="filter-select">
             <option value="">Todos los tipos</option>
-            <option value="Video">Video</option>
-            <option value="Imagen">Imagen</option>
-            <option value="Perfil">Perfil</option>
-            <option value="Documento">Documento</option>
-            <option value="Audio">Audio</option>
-            <option value="Otro">Otro</option>
           </select>
           <select id="filterCat" class="filter-select">
             <option value="">Todas las categorías</option>
@@ -371,12 +359,6 @@ td.td-date{color:var(--text-muted);font-size:12px;white-space:nowrap;}
             <label>Tipo</label>
             <select id="s_tipo">
               <option value="">Todos los tipos</option>
-              <option value="Video">Video</option>
-              <option value="Imagen">Imagen</option>
-              <option value="Perfil">Perfil</option>
-              <option value="Documento">Documento</option>
-              <option value="Audio">Audio</option>
-              <option value="Otro">Otro</option>
             </select>
           </div>
         </div>
@@ -424,6 +406,15 @@ td.td-date{color:var(--text-muted);font-size:12px;white-space:nowrap;}
 <div class="overlay" id="adminOverlay">
   <div class="modal admin-modal">
     <h2>⚙ Administrador</h2>
+    <div class="admin-section">
+      <h3>Tipos</h3>
+      <ul class="admin-list" id="adminTipoList"></ul>
+      <div class="add-row">
+        <input type="text" id="adminTipoInput" placeholder="Nuevo tipo...">
+        <button type="button" id="adminTipoAddBtn">Agregar</button>
+      </div>
+    </div>
+    <div class="admin-divider"></div>
     <div class="admin-section">
       <h3>Categorías</h3>
       <ul class="admin-list" id="adminCatList"></ul>
@@ -478,7 +469,7 @@ const TIPO_CLASS        = {
 
 let token     = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
 let gistId    = localStorage.getItem(STORAGE_GIST_KEY)  || '';
-let state     = { resources: [], categories: [] };
+let state     = { resources: [], categories: [], tipos: [] };
 let saveTimer = null;
 let importPending = [];
 
@@ -553,12 +544,14 @@ async function loadData(){
     // migrar: si tenía videos[], convertirlos a resources[]
     state.resources  = parsed.resources || parsed.videos || [];
     state.categories = parsed.categories || [];
-    // asegurar campo tipo en recursos viejos
-    state.resources.forEach(r=>{ if(!r.tipo) r.tipo='Video'; });
+    state.tipos      = parsed.tipos || ['Video','Imagen','Perfil','Documento','Audio','Otro'];
+    state.resources.forEach(r=>{ if(!r.tipo) r.tipo='Otro'; });
   }
   if(!state.resources)  state.resources  = [];
   if(!state.categories) state.categories = [];
+  if(!state.tipos)      state.tipos      = ['Video','Imagen','Perfil','Documento','Audio','Otro'];
   setSync('ok');
+  renderTipoSelects();
   renderCatSelects();
   renderBank();
 }
@@ -597,8 +590,25 @@ $$('.tab-btn').forEach(btn=>{
 });
 
 /* ════════════════════════════
-   SELECTS DE CATEGORÍA
+   SELECTS DE TIPO
 ════════════════════════════ */
+function renderTipoSelects(){
+  ['#f_tipo','#filterTipo','#s_tipo'].forEach(sel=>{
+    const el=$(sel); if(!el) return;
+    const isFilter = sel!=='#f_tipo';
+    const first = isFilter
+      ? '<option value="">Todos los tipos</option>'
+      : '<option value="">— Selecciona —</option>';
+    const prev = el.value;
+    el.innerHTML = first;
+    state.tipos.forEach(tipo=>{
+      const opt=document.createElement('option');
+      opt.value=tipo; opt.textContent=tipo;
+      if(tipo===prev) opt.selected=true;
+      el.appendChild(opt);
+    });
+  });
+}
 function renderCatSelects(){
   ['#f_cat','#filterCat','#s_cat'].forEach(sel=>{
     const el=$(sel); if(!el) return;
@@ -896,8 +906,44 @@ $('#importBtn').addEventListener('click',()=>{
 });
 
 /* ════════════════════════════
-   ADMIN
+   ADMIN — TIPOS
 ════════════════════════════ */
+function renderAdminTipos(){
+  const list=$('#adminTipoList');
+  list.innerHTML='';
+  if(state.tipos.length===0){
+    list.innerHTML='<li style="color:var(--text-dim);font-size:13px;border:none;background:transparent;padding:4px 0;">Sin tipos aún.</li>';
+    return;
+  }
+  state.tipos.forEach((tipo,i)=>{
+    const tipoCls=TIPO_CLASS[tipo]||'tipo-otro';
+    const li=document.createElement('li');
+    li.innerHTML=`
+      <span style="display:flex;align-items:center;gap:8px;">
+        <span class="badge ${tipoCls}" style="padding:2px 8px;font-size:11px;">${esc(tipo)}</span>
+      </span>
+      <button class="rm" data-i="${i}">×</button>
+    `;
+    li.querySelector('.rm').addEventListener('click',()=>{
+      state.tipos.splice(i,1);
+      renderAdminTipos(); renderTipoSelects(); renderBank(); scheduleSave();
+    });
+    list.appendChild(li);
+  });
+}
+
+$('#adminTipoAddBtn').addEventListener('click', addTipo);
+$('#adminTipoInput').addEventListener('keydown', e=>{ if(e.key==='Enter') addTipo(); });
+
+function addTipo(){
+  const val=$('#adminTipoInput').value.trim();
+  if(!val) return;
+  if(state.tipos.includes(val)){ toast('Tipo ya existe'); return; }
+  state.tipos.push(val);
+  $('#adminTipoInput').value='';
+  renderAdminTipos(); renderTipoSelects(); renderBank(); scheduleSave();
+  toast('Tipo agregado');
+}
 function renderAdminCats(){
   const list=$('#adminCatList');
   list.innerHTML='';
@@ -919,9 +965,10 @@ function renderAdminCats(){
 $('#adminBtn').addEventListener('click',()=>{
   checkPassword().then(ok=>{
     if(!ok) return;
+    renderAdminTipos();
     renderAdminCats();
     $('#adminOverlay').classList.add('open');
-    setTimeout(()=>$('#adminCatInput').focus(),60);
+    setTimeout(()=>$('#adminTipoInput').focus(),60);
   });
 });
 
