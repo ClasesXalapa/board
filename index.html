@@ -198,7 +198,7 @@ main{
   background: var(--panel-2);
   border: 1px solid var(--line);
   border-radius: 8px;
-  padding: 11px 12px 10px;
+  padding: 11px 12px 10px 15px;
   cursor: grab;
   position: relative;
 }
@@ -207,12 +207,52 @@ main{
 .card-prio{
   position:absolute;
   left:0; top:0; bottom:0;
-  width:3px;
+  width:6px;
   border-radius: 8px 0 0 8px;
 }
 .card-prio.alta{ background: var(--priority-alta); }
 .card-prio.media{ background: var(--priority-media); }
 .card-prio.baja{ background: var(--priority-baja); }
+
+/* Colores por categoría */
+.tag.cat-0{ background:rgba(159,199,255,.15); color:#9fc7ff; border:1px solid rgba(159,199,255,.3); }
+.tag.cat-1{ background:rgba(200,155,240,.15); color:#c89bf0; border:1px solid rgba(200,155,240,.3); }
+.tag.cat-2{ background:rgba(95,185,140,.15);  color:#5fb98c; border:1px solid rgba(95,185,140,.3); }
+.tag.cat-3{ background:rgba(240,185,77,.15);  color:#f0b94d; border:1px solid rgba(240,185,77,.3); }
+.tag.cat-4{ background:rgba(255,150,100,.15); color:#ff9664; border:1px solid rgba(255,150,100,.3); }
+.tag.cat-5{ background:rgba(100,210,230,.15); color:#64d2e6; border:1px solid rgba(100,210,230,.3); }
+.tag.cat-6{ background:rgba(255,180,100,.15); color:#ffb464; border:1px solid rgba(255,180,100,.3); }
+.tag.cat-7{ background:rgba(180,240,120,.15); color:#b4f078; border:1px solid rgba(180,240,120,.3); }
+
+/* Borde izquierdo del card según categoría primaria */
+.card.has-cat-0{ border-color:rgba(159,199,255,.35); }
+.card.has-cat-1{ border-color:rgba(200,155,240,.35); }
+.card.has-cat-2{ border-color:rgba(95,185,140,.35); }
+.card.has-cat-3{ border-color:rgba(240,185,77,.35); }
+.card.has-cat-4{ border-color:rgba(255,150,100,.35); }
+.card.has-cat-5{ border-color:rgba(100,210,230,.35); }
+.card.has-cat-6{ border-color:rgba(255,180,100,.35); }
+.card.has-cat-7{ border-color:rgba(180,240,120,.35); }
+
+/* Colores por categoría en el checkbox del modal */
+.checkbox-group label.cat-0{ border-color:rgba(159,199,255,.45); }
+.checkbox-group label.cat-1{ border-color:rgba(200,155,240,.45); }
+.checkbox-group label.cat-2{ border-color:rgba(95,185,140,.45); }
+.checkbox-group label.cat-3{ border-color:rgba(240,185,77,.45); }
+.checkbox-group label.cat-4{ border-color:rgba(255,150,100,.45); }
+.checkbox-group label.cat-5{ border-color:rgba(100,210,230,.45); }
+.checkbox-group label.cat-6{ border-color:rgba(255,180,100,.45); }
+.checkbox-group label.cat-7{ border-color:rgba(180,240,120,.45); }
+
+/* Placeholder al arrastrar entre cards */
+.card-placeholder{
+  border: 2px dashed var(--accent);
+  border-radius: 8px;
+  height: 52px;
+  background: var(--accent-soft);
+  pointer-events: none;
+  flex-shrink: 0;
+}
 
 .card-title{
   font-size: 14px;
@@ -1036,18 +1076,38 @@ function clearDoneColumn(){
   });
 }
 
+/* Paleta de colores para categorías — índice estable por orden de creación */
+const CAT_COLORS = 8; // cuántas clases cat-N existen en CSS
+
+function catIndex(catName){
+  const idx = state.categories.indexOf(catName);
+  return idx === -1 ? null : idx % CAT_COLORS;
+}
+
+function tagHtml(tag){
+  const idx = catIndex(tag);
+  const cls = idx !== null ? `tag cat-${idx}` : 'tag';
+  return `<span class="${cls}">${escapeHtml(tag)}</span>`;
+}
+
 function renderCard(t){
   const div = document.createElement('div');
   div.className = 'card';
   div.draggable = true;
   div.dataset.id = t.id;
   const dc = dueClass(t.due);
+
+  // Si la primera categoría tiene color, resaltar el borde del card con ese color
+  const firstTag = (t.tags||[])[0];
+  const firstIdx = firstTag ? catIndex(firstTag) : null;
+  if(firstIdx !== null) div.classList.add(`has-cat-${firstIdx}`);
+
   div.innerHTML = `
     <div class="card-prio ${t.priority||'media'}"></div>
     <p class="card-title">${escapeHtml(t.title)}</p>
     ${t.desc ? `<p class="card-desc">${escapeHtml(t.desc)}</p>` : ''}
     <div class="card-meta">
-      ${(t.tags||[]).map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
+      ${(t.tags||[]).map(tagHtml).join('')}
       ${t.due ? `<span class="due ${dc}">📅 ${fmtDate(t.due)}</span>` : ''}
       ${t.assignee ? `<span class="assignee"><span class="avatar">${initials(t.assignee)}</span>${escapeHtml(t.assignee)}</span>` : ''}
     </div>
@@ -1062,36 +1122,113 @@ function escapeHtml(str){
   return d.innerHTML;
 }
 
-/* ---------- Drag & drop ---------- */
+/* ---------- Drag & drop (con reordenamiento dentro de columna) ---------- */
 let draggedId = null;
+let placeholder = null;
 
 function onDragStart(e){
-  draggedId = e.target.dataset.id;
-  e.target.classList.add('dragging');
+  draggedId = e.currentTarget.dataset.id;
+  setTimeout(() => e.currentTarget.classList.add('dragging'), 0);
+  e.dataTransfer.effectAllowed = 'move';
 }
+
 function onDragEnd(e){
-  e.target.classList.remove('dragging');
+  e.currentTarget.classList.remove('dragging');
+  if(placeholder && placeholder.parentNode) placeholder.parentNode.removeChild(placeholder);
+  placeholder = null;
+  $$('.column-body').forEach(b => b.classList.remove('drag-over'));
 }
+
+function getPlaceholder(){
+  if(!placeholder){
+    placeholder = document.createElement('div');
+    placeholder.className = 'card-placeholder';
+  }
+  return placeholder;
+}
+
 function onDragOver(e){
   e.preventDefault();
-  e.currentTarget.classList.add('drag-over');
+  e.dataTransfer.dropEffect = 'move';
+  const body = e.currentTarget;
+  if(body.dataset.col === 'resources') return;
+
+  const ph = getPlaceholder();
+  const afterEl = getDragAfterElement(body, e.clientY);
+  if(afterEl){
+    body.insertBefore(ph, afterEl);
+  } else {
+    body.appendChild(ph);
+  }
 }
+
 function onDragLeave(e){
-  e.currentTarget.classList.remove('drag-over');
+  // solo quitar si salimos del body completamente (no hacia un hijo)
+  if(!e.currentTarget.contains(e.relatedTarget)){
+    e.currentTarget.classList.remove('drag-over');
+  }
 }
+
 function onDrop(e){
   e.preventDefault();
-  e.currentTarget.classList.remove('drag-over');
-  const newCol = e.currentTarget.dataset.col;
-  const task = state.tasks.find(t => t.id === draggedId);
-  if(task && task.col !== newCol){
-    task.col = newCol;
-    if(newCol === 'done'){
-      task.completedAt = new Date().toISOString();
-    }
-    render();
-    scheduleSave();
+  $$('.column-body').forEach(b => b.classList.remove('drag-over'));
+
+  const body = e.currentTarget;
+  const newCol = body.dataset.col;
+  if(newCol === 'resources') return;
+
+  const ph = getPlaceholder();
+  const afterEl = getDragAfterElement(body, e.clientY);
+
+  // calcular nuevo índice dentro del estado
+  const colTasks = state.tasks.filter(t => t.col === newCol && t.id !== draggedId);
+  const domCards = [...body.querySelectorAll('.card:not(.dragging)')];
+
+  let insertBeforeId = null;
+  if(afterEl && afterEl.dataset.id){
+    insertBeforeId = afterEl.dataset.id;
   }
+
+  // mover tarea al nuevo col
+  const task = state.tasks.find(t => t.id === draggedId);
+  if(!task) return;
+  const wasNotDone = task.col !== 'done';
+  task.col = newCol;
+  if(newCol === 'done' && wasNotDone) task.completedAt = new Date().toISOString();
+
+  // reordenar state.tasks: sacar la tarea y reinsertar en posición correcta
+  state.tasks = state.tasks.filter(t => t.id !== draggedId);
+  if(insertBeforeId){
+    const idx = state.tasks.findIndex(t => t.id === insertBeforeId);
+    if(idx !== -1){
+      state.tasks.splice(idx, 0, task);
+    } else {
+      // insertar al final de la columna
+      const lastIdx = state.tasks.reduce((acc, t, i) => t.col === newCol ? i : acc, -1);
+      state.tasks.splice(lastIdx + 1, 0, task);
+    }
+  } else {
+    // soltar al final de la columna
+    const lastInCol = state.tasks.reduce((acc, t, i) => t.col === newCol ? i : acc, -1);
+    state.tasks.splice(lastInCol + 1, 0, task);
+  }
+
+  if(ph && ph.parentNode) ph.parentNode.removeChild(ph);
+  placeholder = null;
+  render();
+  scheduleSave();
+}
+
+function getDragAfterElement(container, y){
+  const els = [...container.querySelectorAll('.card:not(.dragging):not(.card-placeholder)')];
+  return els.reduce((closest, el) => {
+    const box = el.getBoundingClientRect();
+    const offset = y - box.top - box.height / 2;
+    if(offset < 0 && offset > closest.offset){
+      return { offset, element: el };
+    }
+    return closest;
+  }, { offset: Number.NEGATIVE_INFINITY }).element;
 }
 
 /* ---------- Modal tarea ---------- */
@@ -1105,9 +1242,11 @@ function buildTagsCheckboxes(selectedTags){
     group.innerHTML = '<span style="color:var(--text-dim); font-size:12px;">El admin aún no ha agregado categorías.</span>';
     return;
   }
-  state.categories.forEach(cat => {
+  state.categories.forEach((cat, i) => {
     const id = 'cat_' + cat.replace(/\s+/g,'_');
     const lbl = document.createElement('label');
+    const colorClass = `cat-${i % CAT_COLORS}`;
+    lbl.className = colorClass;
     lbl.innerHTML = `<input type="checkbox" id="${id}" value="${escapeHtml(cat)}" ${(selectedTags||[]).includes(cat) ? 'checked' : ''}> ${escapeHtml(cat)}`;
     group.appendChild(lbl);
   });
