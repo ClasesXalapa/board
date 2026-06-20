@@ -386,6 +386,7 @@ td.td-date{ color:#444753; font-size:12px; white-space:nowrap; }
   <div class="tabs">
     <button class="tab-btn active" data-view="add">＋ Agregar video</button>
     <button class="tab-btn" data-view="cats">🎬 Banco de Videos</button>
+    <button class="tab-btn" data-view="search">🔍 Buscador</button>
   </div>
 
   <!-- Vista: Agregar -->
@@ -427,6 +428,10 @@ td.td-date{ color:#444753; font-size:12px; white-space:nowrap; }
           <select id="filterCat" class="cat-filter-select">
             <option value="">Todas las categorías</option>
           </select>
+          <div class="search-wrap">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="searchInput" placeholder="Buscar en descripción o notas...">
+          </div>
         </div>
       </div>
       <div id="catsContent">
@@ -436,7 +441,31 @@ td.td-date{ color:#444753; font-size:12px; white-space:nowrap; }
   </div>
 </div>
 
-<!-- Modal Admin -->
+  <!-- Vista: Buscador -->
+  <div class="view" id="view-search">
+    <div class="form-wrap" style="max-width:640px;">
+      <div class="form-card">
+        <h2>Buscador</h2>
+        <div style="display:flex; gap:12px; flex-wrap:wrap;">
+          <div class="field" style="flex:1; min-width:160px; margin-bottom:0;">
+            <label>Categoría</label>
+            <select id="s_cat">
+              <option value="">Todas las categorías</option>
+            </select>
+          </div>
+          <div class="field" style="flex:2; min-width:200px; margin-bottom:0;">
+            <label>Palabra clave</label>
+            <input type="text" id="s_query" placeholder="Buscar en descripción y notas...">
+          </div>
+        </div>
+        <div class="form-actions" style="margin-top:18px;">
+          <button class="btn primary" id="searchBtn">Buscar →</button>
+        </div>
+      </div>
+
+      <div id="searchResults" style="margin-top:20px;"></div>
+    </div>
+  </div>
 <div class="overlay" id="adminOverlay">
   <div class="modal admin-modal">
     <h2>⚙ Administrador</h2>
@@ -629,12 +658,19 @@ $$('.tab-btn').forEach(btn => {
    CATEGORY SELECT
 ═══════════════════════ */
 function renderCatSelect(){
-  const sel = $('#f_cat');
-  sel.innerHTML = '<option value="">— Selecciona —</option>';
-  state.categories.forEach(cat => {
-    const opt = document.createElement('option');
-    opt.value = cat; opt.textContent = cat;
-    sel.appendChild(opt);
+  const selForm   = $('#f_cat');
+  const selSearch = $('#s_cat');
+  [selForm, selSearch].forEach(sel => {
+    if(!sel) return;
+    const first = sel === selForm
+      ? '<option value="">— Selecciona —</option>'
+      : '<option value="">Todas las categorías</option>';
+    sel.innerHTML = first;
+    state.categories.forEach(cat => {
+      const opt = document.createElement('option');
+      opt.value = cat; opt.textContent = cat;
+      sel.appendChild(opt);
+    });
   });
 }
 
@@ -852,10 +888,74 @@ function deleteVideo(id){
   });
 }
 
-// Evento del dropdown
-document.addEventListener('change', e => {
-  if(e.target.id === 'filterCat') renderCatsView();
-});
+/* ═══════════════════════
+   BUSCADOR
+═══════════════════════ */
+function runSearch(){
+  const cat   = $('#s_cat').value;
+  const query = $('#s_query').value.trim().toLowerCase();
+  const results = $('#searchResults');
+
+  if(!query){
+    results.innerHTML = '<div class="empty-state"><div class="ei">💬</div><p>Escribe una palabra clave para buscar.</p></div>';
+    return;
+  }
+
+  let pool = cat
+    ? state.videos.filter(v => v.cat === cat)
+    : state.videos;
+
+  const found = pool.filter(v =>
+    (v.desc||'').toLowerCase().includes(query) ||
+    (v.notes||'').toLowerCase().includes(query)
+  );
+
+  if(found.length === 0){
+    const where = cat ? ` en <strong>${esc(cat)}</strong>` : '';
+    results.innerHTML = `<div class="empty-state"><div class="ei">🔍</div><p>No hay coincidencias para "<strong>${esc($('#s_query').value)}</strong>"${where}.</p></div>`;
+    return;
+  }
+
+  results.innerHTML = '';
+  const wrap = document.createElement('div');
+  wrap.className = 'vt-wrap';
+  wrap.innerHTML = `
+    <table>
+      <thead>
+        <tr>
+          <th>Categoría</th>
+          <th>Link</th>
+          <th>Descripción</th>
+          <th>Notas</th>
+          <th>Fecha</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  `;
+  const tbody = wrap.querySelector('tbody');
+  found.forEach(v => {
+    const idx = catIndex(v.cat);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><span class="cat-badge cat-c${idx}">${esc(v.cat||'—')}</span></td>
+      <td class="td-link"><a href="${esc(v.link)}" target="_blank" rel="noopener">${esc(v.link.length>48?v.link.slice(0,48)+'…':v.link)}</a></td>
+      <td class="td-desc">${esc(v.desc||'—')}</td>
+      <td class="td-notes">${esc(v.notes||'—')}</td>
+      <td class="td-date">${fmtDate(v.fecha)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  const header = document.createElement('p');
+  header.style.cssText = 'font-size:12.5px; color:var(--text-dim); margin-bottom:10px;';
+  header.textContent = `${found.length} resultado${found.length!==1?'s':''} para "${$('#s_query').value}"${cat?' en '+cat:''}`;
+  results.appendChild(header);
+  results.appendChild(wrap);
+}
+
+$('#searchBtn').addEventListener('click', runSearch);
+$('#s_query').addEventListener('keydown', e => { if(e.key==='Enter') runSearch(); });
 
 /* ═══════════════════════
    EXPORTAR CSV
