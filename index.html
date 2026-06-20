@@ -91,6 +91,14 @@ header.top{
 .btn.ghost{
   background: transparent;
 }
+.btn.admin-btn{
+  background: transparent;
+  border-color: #c89bf0;
+  color: #c89bf0;
+  font-size: 12px;
+  padding: 7px 13px;
+}
+.btn.admin-btn:hover{ background: rgba(200,155,240,0.1); }
 .status-pill{
   font-size: 12px;
   color: var(--text-dim);
@@ -399,6 +407,107 @@ main{
 }
 .toast.show{ opacity:1; }
 
+/* Admin panel */
+.admin-modal{
+  max-width: 540px;
+}
+.admin-section{
+  margin-bottom: 24px;
+}
+.admin-section h3{
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #c89bf0;
+  margin: 0 0 12px;
+}
+.admin-list{
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.admin-list li{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  padding: 8px 12px;
+  font-size: 13.5px;
+}
+.admin-list li .remove-item{
+  background: transparent;
+  border: none;
+  color: var(--priority-alta);
+  cursor: pointer;
+  font-size: 16px;
+  line-height: 1;
+  padding: 0 2px;
+  opacity: 0.7;
+}
+.admin-list li .remove-item:hover{ opacity: 1; }
+.admin-add-row{
+  display:flex;
+  gap: 8px;
+}
+.admin-add-row input{
+  flex:1;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 8px 11px;
+  border-radius: 7px;
+  font-size: 13.5px;
+  font-family: var(--font-body);
+}
+.admin-add-row input:focus{
+  outline: none;
+  border-color: #c89bf0;
+}
+.admin-add-row button{
+  background: #c89bf0;
+  border: none;
+  color: #1a1310;
+  font-weight: 700;
+  padding: 8px 16px;
+  border-radius: 7px;
+  cursor: pointer;
+  font-size: 13.5px;
+}
+.admin-add-row button:hover{ filter: brightness(1.1); }
+.admin-divider{
+  border: none;
+  border-top: 1px solid var(--line);
+  margin: 20px 0;
+}
+
+/* checkbox group para categorías */
+.checkbox-group{
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.checkbox-group label{
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  padding: 5px 12px;
+  font-size: 12.5px;
+  cursor: pointer;
+  transition: border-color .15s;
+  color: var(--text);
+}
+.checkbox-group label:hover{ border-color: var(--accent); }
+.checkbox-group input[type=checkbox]{ accent-color: var(--accent); width:14px; height:14px; }
+
 @media (max-width: 640px){
   header.top{ padding: 18px 16px; }
   .brand{ flex-wrap: wrap; }
@@ -439,6 +548,7 @@ main{
       <span class="status-pill"><span class="dot" id="syncDot"></span><span id="syncText">—</span></span>
       <button class="btn ghost" id="reportBtn">Generar reporte</button>
       <button class="btn ghost" id="refreshBtn">Actualizar</button>
+      <button class="btn admin-btn" id="adminBtn">⚙ Admin</button>
       <button class="btn ghost" id="logoutBtn">Cambiar token</button>
     </div>
   </header>
@@ -448,6 +558,7 @@ main{
   </main>
 </div>
 
+<!-- Modal tarea -->
 <div class="overlay" id="cardOverlay">
   <div class="modal">
     <h2 id="modalTitle">Nueva tarea</h2>
@@ -476,11 +587,13 @@ main{
       </div>
       <div class="field">
         <label>Responsable</label>
-        <input type="text" id="f_assignee" placeholder="Nombre de quien lo hace">
+        <select id="f_assignee">
+          <option value="">— Sin asignar —</option>
+        </select>
       </div>
       <div class="field">
-        <label>Etiquetas (separadas por coma)</label>
-        <input type="text" id="f_tags" placeholder="guion, suno, urgente">
+        <label>Categoría</label>
+        <div class="checkbox-group" id="f_tags_group"></div>
       </div>
       <div class="field">
         <label>Recursos</label>
@@ -493,14 +606,6 @@ main{
       <div class="field">
         <label>Resultados</label>
         <textarea id="f_resultados" placeholder="Resultados de la tarea, para incluir en el reporte..."></textarea>
-      </div>
-      <div class="field">
-        <label>Columna</label>
-        <select id="f_col">
-          <option value="todo">To Do</option>
-          <option value="doing">Doing</option>
-          <option value="done">Done</option>
-        </select>
       </div>
       <div class="modal-actions">
         <button type="button" class="btn ghost" id="deleteBtn">Eliminar</button>
@@ -515,6 +620,7 @@ main{
 
 <div class="toast" id="toast"></div>
 
+<!-- Modal recurso -->
 <div class="overlay" id="resourceOverlay">
   <div class="modal">
     <h2 id="resourceModalTitle">Nuevo recurso</h2>
@@ -542,6 +648,7 @@ main{
   </div>
 </div>
 
+<!-- Modal reporte -->
 <div class="overlay" id="reportOverlay">
   <div class="modal">
     <h2>Generar reporte</h2>
@@ -567,7 +674,61 @@ main{
   </div>
 </div>
 
+<!-- Modal Admin -->
+<div class="overlay" id="adminOverlay">
+  <div class="modal admin-modal">
+    <h2>⚙ Panel de Administrador</h2>
+
+    <div class="admin-section">
+      <h3>Categorías</h3>
+      <ul class="admin-list" id="adminCatList"></ul>
+      <div class="admin-add-row">
+        <input type="text" id="adminCatInput" placeholder="Nueva categoría...">
+        <button type="button" id="adminCatAddBtn">Agregar</button>
+      </div>
+    </div>
+
+    <hr class="admin-divider">
+
+    <div class="admin-section">
+      <h3>Responsables</h3>
+      <ul class="admin-list" id="adminRespList"></ul>
+      <div class="admin-add-row">
+        <input type="text" id="adminRespInput" placeholder="Nombre del responsable...">
+        <button type="button" id="adminRespAddBtn">Agregar</button>
+      </div>
+    </div>
+
+    <div class="modal-actions" style="margin-top:10px;">
+      <div></div>
+      <div class="right">
+        <button type="button" class="btn primary" id="adminCloseBtn">Cerrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal contraseña admin -->
+<div class="overlay" id="adminPassOverlay">
+  <div class="modal" style="max-width:360px; text-align:center;">
+    <h2 style="margin-bottom:8px;">🔒 Acceso admin</h2>
+    <p style="color:var(--text-dim); font-size:13px; margin-top:0;">Ingresa la contraseña de administrador.</p>
+    <div class="field" style="text-align:left;">
+      <label>Contraseña</label>
+      <input type="password" id="adminPassInput" placeholder="••••••••••••">
+    </div>
+    <div class="modal-actions">
+      <div></div>
+      <div class="right">
+        <button type="button" class="btn ghost" id="adminPassCancelBtn">Cancelar</button>
+        <button type="button" class="btn primary" id="adminPassConfirmBtn">Entrar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
+const ADMIN_PASS = 'combijosue26';
 const COLUMNS = [
   {id:'todo', label:'To Do'},
   {id:'doing', label:'Doing'},
@@ -578,7 +739,7 @@ const GIST_DESC = 'metiche-board-data';
 const STORAGE_TOKEN_KEY = 'metiche_gh_token';
 const STORAGE_GIST_KEY = 'metiche_gist_id';
 
-let state = { tasks: [], resources: [] };
+let state = { tasks: [], resources: [], categories: [], responsables: [] };
 let token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
 let gistId = localStorage.getItem(STORAGE_GIST_KEY) || '';
 let editingId = null;
@@ -635,7 +796,6 @@ async function findOrCreateGist(){
       localStorage.removeItem(STORAGE_GIST_KEY);
     }
   }
-  // buscar entre los gists del usuario uno con la descripción esperada
   const gists = await ghFetch('https://api.github.com/gists');
   const found = gists.find(g => g.description === GIST_DESC);
   if(found){
@@ -643,13 +803,12 @@ async function findOrCreateGist(){
     localStorage.setItem(STORAGE_GIST_KEY, gistId);
     return gistId;
   }
-  // crear uno nuevo
   const created = await ghFetch('https://api.github.com/gists', {
     method: 'POST',
     body: JSON.stringify({
       description: GIST_DESC,
       public: false,
-      files: { 'board.json': { content: JSON.stringify({ tasks: [] }, null, 2) } }
+      files: { 'board.json': { content: JSON.stringify({ tasks: [], resources: [], categories: [], responsables: [] }, null, 2) } }
     })
   });
   gistId = created.id;
@@ -662,9 +821,11 @@ async function loadBoard(){
   await findOrCreateGist();
   const gist = await ghFetch(`https://api.github.com/gists/${gistId}`);
   const fileContent = gist.files['board.json'].content;
-  state = JSON.parse(fileContent || '{"tasks":[]}');
+  state = JSON.parse(fileContent || '{"tasks":[],"resources":[],"categories":[],"responsables":[]}');
   if(!state.tasks) state.tasks = [];
   if(!state.resources) state.resources = [];
+  if(!state.categories) state.categories = [];
+  if(!state.responsables) state.responsables = [];
   setSync('ok');
   render();
 }
@@ -741,7 +902,6 @@ function render(){
 
   renderResourcesColumn(board);
 
-  // drag & drop
   $$('.card').forEach(card => {
     card.addEventListener('dragstart', onDragStart);
     card.addEventListener('dragend', onDragEnd);
@@ -769,7 +929,6 @@ function render(){
     });
   }
 
-  // recursos
   $$('.resource-card').forEach(card => {
     card.addEventListener('click', () => openResourceModal(card.dataset.id));
   });
@@ -811,33 +970,70 @@ function renderResourceCard(r){
   return div;
 }
 
+/* ---------- Password ---------- */
+
 function checkPassword(){
-  const pass = prompt('Escribe la contraseña para confirmar:');
-  if(pass === null) return false;
-  if(pass !== 'josue'){
-    showToast('Contraseña incorrecta');
-    return false;
-  }
-  return true;
+  return new Promise((resolve) => {
+    const overlay = $('#adminPassOverlay');
+    const input = $('#adminPassInput');
+    const confirmBtn = $('#adminPassConfirmBtn');
+    const cancelBtn = $('#adminPassCancelBtn');
+
+    input.value = '';
+    overlay.classList.add('open');
+    setTimeout(() => input.focus(), 60);
+
+    function onConfirm(){
+      const val = input.value;
+      overlay.classList.remove('open');
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      input.removeEventListener('keydown', onKey);
+      if(val === ADMIN_PASS){
+        resolve(true);
+      } else {
+        showToast('Contraseña incorrecta');
+        resolve(false);
+      }
+    }
+    function onCancel(){
+      overlay.classList.remove('open');
+      confirmBtn.removeEventListener('click', onConfirm);
+      cancelBtn.removeEventListener('click', onCancel);
+      input.removeEventListener('keydown', onKey);
+      resolve(false);
+    }
+    function onKey(e){
+      if(e.key === 'Enter') onConfirm();
+      if(e.key === 'Escape') onCancel();
+    }
+    confirmBtn.addEventListener('click', onConfirm);
+    cancelBtn.addEventListener('click', onCancel);
+    input.addEventListener('keydown', onKey);
+  });
 }
 
 function deleteTaskWithPassword(id){
-  if(!checkPassword()) return;
-  state.tasks = state.tasks.filter(t => t.id !== id);
-  render();
-  scheduleSave();
-  showToast('Tarea eliminada');
+  checkPassword().then(ok => {
+    if(!ok) return;
+    state.tasks = state.tasks.filter(t => t.id !== id);
+    render();
+    scheduleSave();
+    showToast('Tarea eliminada');
+  });
 }
 
 function clearDoneColumn(){
   const doneTasks = state.tasks.filter(t => t.col === 'done');
   if(doneTasks.length === 0){ showToast('La columna Done ya está vacía'); return; }
-  if(!checkPassword()) return;
-  if(!confirm(`¿Eliminar ${doneTasks.length} tarea(s) de Done? Esta acción no se puede deshacer.`)) return;
-  state.tasks = state.tasks.filter(t => t.col !== 'done');
-  render();
-  scheduleSave();
-  showToast('Columna Done vaciada');
+  checkPassword().then(ok => {
+    if(!ok) return;
+    if(!confirm(`¿Eliminar ${doneTasks.length} tarea(s) de Done? Esta acción no se puede deshacer.`)) return;
+    state.tasks = state.tasks.filter(t => t.col !== 'done');
+    render();
+    scheduleSave();
+    showToast('Columna Done vaciada');
+  });
 }
 
 function renderCard(t){
@@ -898,9 +1094,36 @@ function onDrop(e){
   }
 }
 
-/* ---------- Modal ---------- */
+/* ---------- Modal tarea ---------- */
 
 let originalFeedback = '';
+
+function buildTagsCheckboxes(selectedTags){
+  const group = $('#f_tags_group');
+  group.innerHTML = '';
+  if(state.categories.length === 0){
+    group.innerHTML = '<span style="color:var(--text-dim); font-size:12px;">El admin aún no ha agregado categorías.</span>';
+    return;
+  }
+  state.categories.forEach(cat => {
+    const id = 'cat_' + cat.replace(/\s+/g,'_');
+    const lbl = document.createElement('label');
+    lbl.innerHTML = `<input type="checkbox" id="${id}" value="${escapeHtml(cat)}" ${(selectedTags||[]).includes(cat) ? 'checked' : ''}> ${escapeHtml(cat)}`;
+    group.appendChild(lbl);
+  });
+}
+
+function buildAssigneeSelect(selectedAssignee){
+  const sel = $('#f_assignee');
+  sel.innerHTML = '<option value="">— Sin asignar —</option>';
+  state.responsables.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r;
+    opt.textContent = r;
+    if(r === selectedAssignee) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
 
 function openModal(id, defaultCol){
   editingId = id;
@@ -915,17 +1138,17 @@ function openModal(id, defaultCol){
     $('#f_desc').value = t.desc || '';
     $('#f_due').value = t.due || '';
     $('#f_prio').value = t.priority || 'media';
-    $('#f_assignee').value = t.assignee || '';
-    $('#f_tags').value = (t.tags||[]).join(', ');
+    buildAssigneeSelect(t.assignee || '');
+    buildTagsCheckboxes(t.tags || []);
     $('#f_recursos').value = (t.recursos||[]).join('\n');
     $('#f_feedback').value = t.feedback || '';
     originalFeedback = t.feedback || '';
     $('#f_resultados').value = t.resultados || '';
-    $('#f_col').value = t.col;
     $('#deleteBtn').classList.remove('hidden');
   } else {
     $('#modalTitle').textContent = 'Nueva tarea';
-    $('#f_col').value = defaultCol || 'todo';
+    buildAssigneeSelect('');
+    buildTagsCheckboxes([]);
     $('#deleteBtn').classList.add('hidden');
     originalFeedback = '';
   }
@@ -938,6 +1161,10 @@ function closeModal(){
   editingId = null;
 }
 
+function getSelectedTags(){
+  return Array.from($$('#f_tags_group input[type=checkbox]:checked')).map(cb => cb.value);
+}
+
 function parseRecursos(text){
   return text
     .split(/[\n,]+/)
@@ -948,24 +1175,36 @@ function parseRecursos(text){
 
 $('#cardForm').addEventListener('submit', (e) => {
   e.preventDefault();
-  const tags = $('#f_tags').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const tags = getSelectedTags();
   const newFeedback = $('#f_feedback').value.trim();
 
   if(newFeedback !== originalFeedback){
-    if(!checkPassword()) return;
+    checkPassword().then(ok => {
+      if(!ok) return;
+      saveTask(tags, newFeedback);
+    });
+    return;
   }
+
+  saveTask(tags, newFeedback);
+});
+
+function saveTask(tags, newFeedback){
+  const defaultCol = editingId
+    ? state.tasks.find(x => x.id === editingId)?.col || 'todo'
+    : (document._pendingCol || 'todo');
 
   const data = {
     title: $('#f_title').value.trim(),
     desc: $('#f_desc').value.trim(),
     due: $('#f_due').value,
     priority: $('#f_prio').value,
-    assignee: $('#f_assignee').value.trim(),
+    assignee: $('#f_assignee').value,
     tags,
     recursos: parseRecursos($('#f_recursos').value),
     feedback: newFeedback,
     resultados: $('#f_resultados').value.trim(),
-    col: $('#f_col').value,
+    col: defaultCol,
   };
   if(editingId){
     const t = state.tasks.find(x => x.id === editingId);
@@ -984,7 +1223,7 @@ $('#cardForm').addEventListener('submit', (e) => {
   closeModal();
   render();
   scheduleSave();
-});
+}
 
 $('#cancelBtn').addEventListener('click', closeModal);
 $('#cardOverlay').addEventListener('click', (e) => {
@@ -993,12 +1232,24 @@ $('#cardOverlay').addEventListener('click', (e) => {
 
 $('#deleteBtn').addEventListener('click', () => {
   if(!editingId) return;
-  if(!checkPassword()) return;
-  state.tasks = state.tasks.filter(t => t.id !== editingId);
-  closeModal();
-  render();
-  scheduleSave();
+  checkPassword().then(ok => {
+    if(!ok) return;
+    state.tasks = state.tasks.filter(t => t.id !== editingId);
+    closeModal();
+    render();
+    scheduleSave();
+  });
 });
+
+// Guardar defaultCol al abrir modal (parche sin campo oculto)
+const _origOpenModal = openModal;
+(function(){
+  const origAdd = $$('.add-card-btn');
+  document.addEventListener('click', (e) => {
+    const btn = e.target.closest('.add-card-btn');
+    if(btn && !btn.id) document._pendingCol = btn.dataset.col || 'todo';
+  });
+})();
 
 /* ---------- Modal de Recursos ---------- */
 
@@ -1062,6 +1313,97 @@ $('#resourceDeleteBtn').addEventListener('click', () => {
   scheduleSave();
 });
 
+/* ---------- Panel Admin ---------- */
+
+function renderAdminLists(){
+  // Categorías
+  const catList = $('#adminCatList');
+  catList.innerHTML = '';
+  if(state.categories.length === 0){
+    catList.innerHTML = '<li style="color:var(--text-dim); font-size:12.5px; border:none; background:transparent;">Sin categorías aún.</li>';
+  } else {
+    state.categories.forEach((cat, i) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>${escapeHtml(cat)}</span><button class="remove-item" data-type="cat" data-index="${i}" title="Eliminar">×</button>`;
+      catList.appendChild(li);
+    });
+  }
+
+  // Responsables
+  const respList = $('#adminRespList');
+  respList.innerHTML = '';
+  if(state.responsables.length === 0){
+    respList.innerHTML = '<li style="color:var(--text-dim); font-size:12.5px; border:none; background:transparent;">Sin responsables aún.</li>';
+  } else {
+    state.responsables.forEach((r, i) => {
+      const li = document.createElement('li');
+      li.innerHTML = `<span>${escapeHtml(r)}</span><button class="remove-item" data-type="resp" data-index="${i}" title="Eliminar">×</button>`;
+      respList.appendChild(li);
+    });
+  }
+
+  // eventos de eliminar
+  $$('.remove-item').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const type = btn.dataset.type;
+      const idx = parseInt(btn.dataset.index);
+      if(type === 'cat'){
+        state.categories.splice(idx, 1);
+      } else {
+        state.responsables.splice(idx, 1);
+      }
+      renderAdminLists();
+      scheduleSave();
+    });
+  });
+}
+
+function openAdminPanel(){
+  checkPassword().then(ok => {
+    if(!ok) return;
+    renderAdminLists();
+    $('#adminOverlay').classList.add('open');
+    setTimeout(()=> $('#adminCatInput').focus(), 60);
+  });
+}
+
+$('#adminBtn').addEventListener('click', openAdminPanel);
+
+$('#adminCatAddBtn').addEventListener('click', () => {
+  const val = $('#adminCatInput').value.trim();
+  if(!val) return;
+  if(state.categories.includes(val)){ showToast('Categoría ya existe'); return; }
+  state.categories.push(val);
+  $('#adminCatInput').value = '';
+  renderAdminLists();
+  scheduleSave();
+  showToast('Categoría agregada');
+});
+$('#adminCatInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ e.preventDefault(); $('#adminCatAddBtn').click(); }
+});
+
+$('#adminRespAddBtn').addEventListener('click', () => {
+  const val = $('#adminRespInput').value.trim();
+  if(!val) return;
+  if(state.responsables.includes(val)){ showToast('Responsable ya existe'); return; }
+  state.responsables.push(val);
+  $('#adminRespInput').value = '';
+  renderAdminLists();
+  scheduleSave();
+  showToast('Responsable agregado');
+});
+$('#adminRespInput').addEventListener('keydown', (e) => {
+  if(e.key === 'Enter'){ e.preventDefault(); $('#adminRespAddBtn').click(); }
+});
+
+$('#adminCloseBtn').addEventListener('click', () => {
+  $('#adminOverlay').classList.remove('open');
+});
+$('#adminOverlay').addEventListener('click', (e) => {
+  if(e.target.id === 'adminOverlay') $('#adminOverlay').classList.remove('open');
+});
+
 /* ---------- Setup / auth ---------- */
 
 $('#connectBtn').addEventListener('click', async () => {
@@ -1122,7 +1464,6 @@ function generateReport(cols){
     return;
   }
 
-  // agrupar por fecha de entrega (due). Sin fecha -> "Sin fecha"
   const groups = {};
   list.forEach(t => {
     const key = t.due || 'sin-fecha';
@@ -1140,23 +1481,22 @@ function generateReport(cols){
   const fechaLegible = today.toLocaleDateString('es-MX', { day:'numeric', month:'long', year:'numeric' });
   const colsLabel = cols.map(c => COL_LABELS[c]).join(', ');
 
-  // Emojis construidos via escapes unicode (inmune a problemas de encoding del archivo fuente)
   const E = {
-    clapper: '\u{1F3AC}',   // 🎬
-    calendar: '\u{1F4C5}',  // 📅
-    folder: '\u{1F4C2}',    // 📂
-    pin: '\u{1F4CC}',       // 📌
-    memo: '\u{1F4DD}',      // 📝
-    check: '\u2705',        // ✅
-    speech: '\u{1F4AC}',    // 💬
-    person: '\u{1F464}',    // 👤
-    chart: '\u{1F4CA}',     // 📊
-    blue: '\u{1F535}',      // 🔵
-    yellow: '\u{1F7E1}',    // 🟡
-    green: '\u{1F7E2}',     // 🟢
-    white: '\u26AA',        // ⚪
-    line1: '\u2501'.repeat(15), // ━━━...
-    line2: '\u2504'.repeat(15), // ┄┄┄...
+    clapper: '\u{1F3AC}',
+    calendar: '\u{1F4C5}',
+    folder: '\u{1F4C2}',
+    pin: '\u{1F4CC}',
+    memo: '\u{1F4DD}',
+    check: '\u2705',
+    speech: '\u{1F4AC}',
+    person: '\u{1F464}',
+    chart: '\u{1F4CA}',
+    blue: '\u{1F535}',
+    yellow: '\u{1F7E1}',
+    green: '\u{1F7E2}',
+    white: '\u26AA',
+    line1: '\u2501'.repeat(15),
+    line2: '\u2504'.repeat(15),
   };
 
   const COL_EMOJI = { todo: E.blue, doing: E.yellow, done: E.green };
