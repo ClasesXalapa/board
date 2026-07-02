@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Tablero de Producción Majo</title>
+<title>Board</title>
 <style>
 :root{
   --bg: #15161a;
@@ -121,6 +121,22 @@ header.top{
   display:flex;
   align-items:center;
   gap:6px;
+}
+.filter-select{
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  color: var(--text);
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  font-family: var(--font-body);
+  cursor: pointer;
+  max-width: 170px;
+}
+.filter-select:hover{ border-color:#444753; }
+.filter-select.active{
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .dot{
   width:7px; height:7px; border-radius:50%;
@@ -598,10 +614,13 @@ main{
 <div id="appScreen" class="hidden">
   <header class="top">
     <div class="brand">
-      <h1>Tablero Majo</h1>
+      <h1>Board</h1>
     </div>
     <div class="top-actions">
       <span class="status-pill"><span class="dot" id="syncDot"></span><span id="syncText">—</span></span>
+      <select class="filter-select" id="filterAssignee" title="Filtrar por responsable">
+        <option value="">Todos los responsables</option>
+      </select>
       <button class="btn ghost" id="reportBtn">Generar reporte</button>
       <button class="btn ghost" id="refreshBtn">Actualizar</button>
       <button class="btn only-btn" id="onlyBtn">⚡ Generar tareas Only</button>
@@ -833,6 +852,7 @@ const STORAGE_TOKEN_KEY = 'metiche_gh_token';
 const STORAGE_GIST_KEY = 'metiche_gist_id';
 
 let state = { tasks: [], resources: [], categories: [], responsables: [] };
+let currentFilter = '';
 let token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
 let gistId = localStorage.getItem(STORAGE_GIST_KEY) || '';
 let editingId = null;
@@ -969,10 +989,12 @@ function initials(name){
 }
 
 function render(){
+  populateFilterSelect();
   const board = $('#board');
   board.innerHTML = '';
   COLUMNS.forEach(col => {
-    const tasks = state.tasks.filter(t => t.col === col.id);
+    let tasks = state.tasks.filter(t => t.col === col.id);
+    if(currentFilter) tasks = tasks.filter(t => t.assignee === currentFilter);
     const colEl = document.createElement('div');
     colEl.className = 'column';
     colEl.dataset.col = col.id;
@@ -1062,6 +1084,30 @@ function renderResourceCard(r){
   `;
   return div;
 }
+
+function populateFilterSelect(){
+  const sel = $('#filterAssignee');
+  if(!sel) return;
+  const prev = currentFilter;
+  sel.innerHTML = '<option value="">Todos los responsables</option>';
+  state.responsables.forEach(r => {
+    const opt = document.createElement('option');
+    opt.value = r;
+    opt.textContent = r;
+    sel.appendChild(opt);
+  });
+  // Si el responsable filtrado ya no existe, resetea el filtro
+  if(prev && !state.responsables.includes(prev)){
+    currentFilter = '';
+  }
+  sel.value = currentFilter;
+  sel.classList.toggle('active', !!currentFilter);
+}
+
+$('#filterAssignee').addEventListener('change', (e) => {
+  currentFilter = e.target.value;
+  render();
+});
 
 /* ---------- Password ---------- */
 
