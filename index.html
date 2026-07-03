@@ -115,6 +115,14 @@ header.top{
   padding: 7px 13px;
 }
 .btn.videos-btn:hover{ background: rgba(100,210,230,0.1); }
+.btn.review-btn{
+  background: transparent;
+  border-color: #ff7ea3;
+  color: #ff7ea3;
+  font-size: 12px;
+  padding: 7px 13px;
+}
+.btn.review-btn:hover{ background: rgba(255,126,163,0.1); }
 .status-pill{
   font-size: 12px;
   color: var(--text-dim);
@@ -625,6 +633,7 @@ main{
       <button class="btn ghost" id="refreshBtn">Actualizar</button>
       <button class="btn only-btn" id="onlyBtn">⚡ Generar tareas Only</button>
       <button class="btn videos-btn" id="videosBtn">📦 Banco de Recursos</button>
+      <button class="btn review-btn" id="reviewsBtn">🎬 Revisiones</button>
       <button class="btn admin-btn" id="adminBtn">⚙ Admin</button>
       <button class="btn ghost" id="logoutBtn">Cambiar token</button>
     </div>
@@ -1757,6 +1766,11 @@ $('#videosBtn').addEventListener('click', () => {
   // Guarda el gistId en localStorage para que videos.html lo reutilice
   if(gistId) localStorage.setItem('metiche_gist_id', gistId);
   window.open('videos.html', '_blank');
+});
+
+$('#reviewsBtn').addEventListener('click', () => {
+  if(gistId) localStorage.setItem('metiche_gist_id', gistId);
+  window.open('revisiones.html', '_blank');
 });
 
 $('#reportBtn').addEventListener('click', () => {
