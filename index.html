@@ -997,6 +997,18 @@ function initials(name){
   return name.trim().split(/\s+/).slice(0,2).map(w=>w[0].toUpperCase()).join('');
 }
 
+function personColor(name){
+  if(!name) return { text:'#9a9da6', bg:'rgba(154,157,166,.14)', border:'rgba(154,157,166,.4)' };
+  let hash = 0;
+  for(let i = 0; i < name.length; i++){ hash = (hash * 31 + name.charCodeAt(i)) >>> 0; }
+  const hue = hash % 360;
+  return {
+    text: `hsl(${hue}, 72%, 72%)`,
+    bg: `hsla(${hue}, 72%, 55%, .16)`,
+    border: `hsla(${hue}, 72%, 55%, .4)`
+  };
+}
+
 function render(){
   populateFilterSelect();
   const board = $('#board');
@@ -1217,7 +1229,7 @@ function renderCard(t){
     <div class="card-meta">
       ${(t.tags||[]).map(tagHtml).join('')}
       ${t.due ? `<span class="due ${dc}">📅 ${fmtDate(t.due)}</span>` : ''}
-      ${t.assignee ? `<span class="assignee"><span class="avatar">${initials(t.assignee)}</span>${escapeHtml(t.assignee)}</span>` : ''}
+      ${t.assignee ? (() => { const c = personColor(t.assignee); return `<span class="assignee" style="color:${c.text}; border-color:${c.border};"><span class="avatar" style="color:${c.text}; border-color:${c.border}; background:${c.bg};">${initials(t.assignee)}</span>${escapeHtml(t.assignee)}</span>`; })() : ''}
     </div>
     ${t.col === 'done' ? `<button type="button" class="card-delete-btn" data-id="${t.id}">Eliminar registro</button>` : ''}
   `;
