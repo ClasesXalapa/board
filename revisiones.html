@@ -11,7 +11,7 @@
   --accent:#ff5c39; --accent-soft:rgba(255,92,57,.14);
   --pink:#ff7ea3; --radius:10px; --font:'Inter',-apple-system,sans-serif;
   --font-display:'Fraunces', Georgia, serif;
-  --est-pendiente:#9fc7ff; --est-aprobado:#5fb98c; --est-cambios:#f0904d;
+  --est-pendiente:#9fc7ff; --est-revisado:#5fb98c;
 }
 *{ box-sizing:border-box; margin:0; padding:0; }
 html,body{ background:var(--bg); color:var(--text); font-family:var(--font); min-height:100vh; }
@@ -37,14 +37,10 @@ header.top{
 .btn.primary:hover{ filter:brightness(1.07); }
 .btn.ghost{ background:transparent; }
 .btn.sm{ font-size:12px; padding:6px 11px; }
-.btn.approve{ border-color:var(--est-aprobado); color:var(--est-aprobado); }
-.btn.approve:hover{ background:rgba(95,185,140,.1); }
-.btn.changes{ border-color:var(--est-cambios); color:var(--est-cambios); }
-.btn.changes:hover{ background:rgba(240,144,77,.1); }
 
 .status-pill{ font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:6px; }
 .dot{ width:7px; height:7px; border-radius:50%; background:#666; display:inline-block; }
-.dot.ok{ background:var(--est-aprobado); } .dot.warn{ background:#f0b94d; }
+.dot.ok{ background:var(--est-revisado); } .dot.warn{ background:#f0b94d; }
 
 .filter-select, select, .field select{
   background:var(--panel-2); border:1px solid var(--line); color:var(--text);
@@ -102,12 +98,11 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
 }
 .people-tag.revisor .avatar{ color:var(--pink); border-color:rgba(255,126,163,.35); }
 
-.status-summary{ display:flex; flex-wrap:wrap; gap:5px; }
-.mini-badge{ font-size:10.5px; padding:2px 7px; border-radius:20px; font-weight:600; letter-spacing:.02em; }
-.mini-badge.pendiente{ color:var(--est-pendiente); background:rgba(159,199,255,.14); }
-.mini-badge.aprobado{ color:var(--est-aprobado); background:rgba(95,185,140,.14); }
-.mini-badge.cambios{ color:var(--est-cambios); background:rgba(240,144,77,.16); }
-.mini-badge.vacio{ color:var(--text-muted); background:var(--panel); }
+.card-footer{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.estado-badge{ font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; letter-spacing:.02em; white-space:nowrap; }
+.estado-badge.pendiente{ color:var(--est-pendiente); background:rgba(159,199,255,.14); }
+.estado-badge.revisado{ color:var(--est-revisado); background:rgba(95,185,140,.14); }
+.links-count{ font-size:11px; color:var(--text-muted); white-space:nowrap; }
 
 /* Overlay / modal */
 .overlay{
@@ -115,8 +110,7 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
   align-items:flex-start; justify-content:center; padding:5vh 20px; overflow-y:auto; z-index:50;
 }
 .overlay.open{ display:flex; }
-.modal{ background:var(--panel); border:1px solid var(--line); border-radius:14px; width:100%; max-width:480px; padding:26px; }
-.modal.wide{ max-width:620px; }
+.modal{ background:var(--panel); border:1px solid var(--line); border-radius:14px; width:100%; max-width:520px; padding:26px; }
 .modal h2{ font-size:17px; font-weight:600; margin-bottom:18px; }
 .field{ margin-bottom:15px; }
 .field label{ display:block; font-size:11px; color:var(--text-dim); letter-spacing:.04em; text-transform:uppercase; margin-bottom:6px; }
@@ -130,29 +124,17 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
 .row2 .field{ flex:1; }
 .modal-actions{ display:flex; align-items:center; gap:8px; margin-top:20px; }
 
-/* Recursos */
-#recursosSection{ border-top:1px solid var(--line); padding-top:16px; margin-top:4px; }
-.recurso-item{ background:var(--panel-2); border:1px solid var(--line); border-radius:9px; padding:12px 13px; margin-bottom:10px; }
-.recurso-head{ display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; margin-bottom:4px; }
-.recurso-link{ color:#9fc7ff; text-decoration:none; font-size:13px; font-weight:500; }
-.recurso-link:hover{ text-decoration:underline; }
-.estado-badge{ font-size:11px; font-weight:600; padding:3px 9px; border-radius:20px; white-space:nowrap; }
-.estado-badge.pendiente{ color:var(--est-pendiente); background:rgba(159,199,255,.14); }
-.estado-badge.aprobado{ color:var(--est-aprobado); background:rgba(95,185,140,.14); }
-.estado-badge.cambios{ color:var(--est-cambios); background:rgba(240,144,77,.16); }
-.recurso-meta{ font-size:11.5px; color:var(--text-muted); margin-bottom:6px; }
-.recurso-nota{ font-size:12.5px; color:var(--text-dim); margin-bottom:8px; line-height:1.4; }
-.comentarios-list{ display:flex; flex-direction:column; gap:6px; margin-bottom:8px; }
-.comentario{ font-size:12.5px; line-height:1.4; background:var(--panel); border-radius:6px; padding:7px 9px; }
-.comentario strong{ color:var(--pink); }
-.comentario .fecha{ color:var(--text-muted); font-size:10.5px; margin-left:6px; }
-.comentario.sistema{ color:var(--text-dim); font-style:italic; background:transparent; padding:2px 2px; }
-.recurso-actions{ display:flex; flex-wrap:wrap; gap:6px; align-items:center; }
-.recurso-actions select.actor-select{ width:auto; min-width:130px; font-size:12px; padding:7px 9px; }
-.recurso-actions input.comentario-input{ flex:1; min-width:140px; font-size:12.5px; padding:7px 10px; }
-.add-recurso-box{ background:var(--panel-2); border:1px dashed var(--line); border-radius:9px; padding:12px; margin-top:6px; }
-.add-recurso-box .row2{ margin-bottom:8px; }
-.no-recursos{ color:var(--text-muted); font-size:12.5px; text-align:center; padding:10px 0; }
+/* Links a Google Doc */
+.links-field label{ margin-bottom:9px; }
+.link-row{ display:flex; gap:8px; margin-bottom:8px; align-items:flex-start; }
+.link-row .link-inputs{ flex:1; display:flex; flex-direction:column; gap:6px; }
+.link-row input{ margin:0; }
+.link-remove{
+  background:transparent; border:1px solid var(--line); color:var(--text-dim);
+  width:34px; height:34px; border-radius:8px; cursor:pointer; flex-shrink:0; font-size:15px;
+}
+.link-remove:hover{ border-color:var(--accent); color:var(--accent); }
+.add-link-btn{ width:100%; }
 
 /* Setup / auth */
 .setup-box{
@@ -199,7 +181,7 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
       <select class="filter-select" id="filterRevisor" title="Ver pendientes de">
         <option value="">Todos los revisores</option>
       </select>
-      <label class="check-inline"><input type="checkbox" id="onlyPending"> Solo con pendientes</label>
+      <label class="check-inline"><input type="checkbox" id="onlyPending"> Solo pendientes</label>
       <button class="btn ghost" id="refreshBtn">Actualizar</button>
       <a class="btn ghost" href="index.html">⬅ Board</a>
       <button class="btn ghost" id="logoutBtn">Cambiar token</button>
@@ -213,7 +195,7 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
 
 <!-- Modal tarjeta -->
 <div class="overlay" id="cardOverlay">
-  <div class="modal wide">
+  <div class="modal">
     <h2 id="modalTitle">Nueva revisión</h2>
     <form id="cardForm">
       <div class="field">
@@ -238,18 +220,18 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
           </select>
         </div>
       </div>
+      <div class="field">
+        <label>Estado</label>
+        <select id="f_estado">
+          <option value="pendiente">🔵 Pendiente de revisión</option>
+          <option value="revisado">🟢 Revisado</option>
+        </select>
+      </div>
 
-      <div class="field" id="recursosSection">
-        <label>Recursos y feedback</label>
-        <div id="recursosList"></div>
-        <div class="add-recurso-box">
-          <div class="row2">
-            <input type="url" id="r_url" placeholder="Link de Google Drive">
-            <select id="r_autor"><option value="">Subido por…</option></select>
-          </div>
-          <textarea id="r_nota" placeholder="Nota corta (ej. v2, corregí el audio)" style="min-height:44px; margin-bottom:8px;"></textarea>
-          <button type="button" class="btn ghost sm" id="addRecursoBtn" style="width:100%;">+ Agregar link</button>
-        </div>
+      <div class="field links-field">
+        <label>Links a Google Doc (mínimo 1)</label>
+        <div id="linkRows"></div>
+        <button type="button" class="btn ghost sm add-link-btn" id="addLinkRowBtn">+ Agregar otro link</button>
       </div>
 
       <div class="modal-actions">
@@ -290,12 +272,6 @@ const COLUMNS = [
   { id:'listo',    label:'Listo para publicar' },
 ];
 
-const ESTADOS = {
-  pendiente: { label:'Pendiente de revisión', cls:'pendiente' },
-  aprobado:  { label:'Aprobado',              cls:'aprobado' },
-  cambios:   { label:'Cambios solicitados',   cls:'cambios' },
-};
-
 let token         = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
 let gistId        = localStorage.getItem(STORAGE_GIST_KEY)  || '';
 let state         = { cards: [] };
@@ -310,23 +286,8 @@ const $$ = s => document.querySelectorAll(s);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,6);
 const escapeHtml = str => { const d = document.createElement('div'); d.textContent = str || ''; return d.innerHTML; };
 
-function isDriveLink(url){
-  return /^https?:\/\/(drive|docs)\.google\.com\//i.test(url.trim());
-}
-
-function fmtRelative(iso){
-  if(!iso) return '';
-  const d = new Date(iso);
-  const diffDays = Math.floor((Date.now() - d.getTime()) / 86400000);
-  if(diffDays <= 0) return 'hoy';
-  if(diffDays === 1) return 'ayer';
-  if(diffDays < 7) return `hace ${diffDays} días`;
-  return d.toLocaleDateString('es-MX', { day:'numeric', month:'short' });
-}
-
-function initials(name){
-  if(!name) return '?';
-  return name.trim().split(/\s+/).slice(0,2).map(w => w[0].toUpperCase()).join('');
+function isGoogleLink(url){
+  return /^https?:\/\/(docs|drive)\.google\.com\//i.test(url.trim());
 }
 
 /* ════════════════════════════
@@ -347,6 +308,11 @@ function setSync(s){
   else if(s === 'saving'){ dot.classList.add('warn'); text.textContent = 'Guardando...'; }
   else if(s === 'error'){ text.textContent = 'Error'; }
   else { text.textContent = 'Cargando...'; }
+}
+
+function initials(name){
+  if(!name) return '?';
+  return name.trim().split(/\s+/).slice(0,2).map(w => w[0].toUpperCase()).join('');
 }
 
 /* ════════════════════════════
@@ -413,7 +379,10 @@ async function loadAll(){
   } else {
     state.cards = [];
   }
-  state.cards.forEach(c => { if(!c.recursos) c.recursos = []; });
+  state.cards.forEach(c => {
+    if(!c.links) c.links = [];
+    if(!c.estado) c.estado = 'pendiente';
+  });
 
   setSync('ok');
   populateFilterSelect();
@@ -480,18 +449,9 @@ $('#onlyPending').addEventListener('change', e => {
 /* ════════════════════════════
    RENDER TABLERO
 ════════════════════════════ */
-function recuentoEstados(recursos){
-  const c = { pendiente:0, aprobado:0, cambios:0 };
-  (recursos || []).forEach(r => { if(c[r.estado] !== undefined) c[r.estado]++; });
-  return c;
-}
-
 function cardMatchesFilters(card){
   if(currentFilter && card.revisor !== currentFilter) return false;
-  if(onlyPending){
-    const c = recuentoEstados(card.recursos);
-    if(c.pendiente === 0 && c.cambios === 0) return false;
-  }
+  if(onlyPending && card.estado !== 'pendiente') return false;
   return true;
 }
 
@@ -539,12 +499,8 @@ function renderCard(c){
   div.className = 'card';
   div.draggable = true;
   div.dataset.id = c.id;
-  const counts = recuentoEstados(c.recursos);
-  const badges = [];
-  if(counts.cambios > 0)   badges.push(`<span class="mini-badge cambios">🟠 ${counts.cambios} cambios</span>`);
-  if(counts.pendiente > 0) badges.push(`<span class="mini-badge pendiente">🔵 ${counts.pendiente} pendiente${counts.pendiente!==1?'s':''}</span>`);
-  if(counts.aprobado > 0)  badges.push(`<span class="mini-badge aprobado">🟢 ${counts.aprobado} aprobado${counts.aprobado!==1?'s':''}</span>`);
-  if(badges.length === 0)  badges.push(`<span class="mini-badge vacio">Sin recursos aún</span>`);
+  const n = (c.links || []).length;
+  const estadoLabel = c.estado === 'revisado' ? '🟢 Revisado' : '🔵 Pendiente';
 
   div.innerHTML = `
     <p class="card-title">${escapeHtml(c.title)}</p>
@@ -553,7 +509,10 @@ function renderCard(c){
       ${c.autor ? `<span class="people-tag"><span class="avatar">${initials(c.autor)}</span>${escapeHtml(c.autor)}</span>` : ''}
       ${c.revisor ? `<span class="people-tag revisor"><span class="avatar">${initials(c.revisor)}</span>→ ${escapeHtml(c.revisor)}</span>` : ''}
     </div>
-    <div class="status-summary">${badges.join('')}</div>
+    <div class="card-footer">
+      <span class="estado-badge ${c.estado === 'revisado' ? 'revisado' : 'pendiente'}">${estadoLabel}</span>
+      <span class="links-count">🔗 ${n} link${n !== 1 ? 's' : ''}</span>
+    </div>
   `;
   return div;
 }
@@ -635,6 +594,47 @@ function onDrop(e){
 }
 
 /* ════════════════════════════
+   LINK ROWS (dinámicos dentro del modal)
+════════════════════════════ */
+function renderLinkRows(links){
+  const wrap = $('#linkRows');
+  wrap.innerHTML = '';
+  const list = (links && links.length > 0) ? links : [{ url:'', nota:'' }];
+  list.forEach(l => addLinkRow(l.url, l.nota));
+}
+
+function addLinkRow(url = '', nota = ''){
+  const wrap = $('#linkRows');
+  const row = document.createElement('div');
+  row.className = 'link-row';
+  row.innerHTML = `
+    <div class="link-inputs">
+      <input type="url" class="link-url" placeholder="Link del Google Doc" value="${escapeHtml(url)}">
+      <input type="text" class="link-nota" placeholder="Nota corta (opcional, ej. Fase de edición)" value="${escapeHtml(nota)}">
+    </div>
+    <button type="button" class="link-remove" title="Quitar">×</button>
+  `;
+  row.querySelector('.link-remove').addEventListener('click', () => {
+    if($('#linkRows').children.length > 1) row.remove();
+    else { row.querySelector('.link-url').value = ''; row.querySelector('.link-nota').value = ''; }
+  });
+  wrap.appendChild(row);
+}
+
+$('#addLinkRowBtn').addEventListener('click', () => addLinkRow());
+
+function collectLinksFromForm(){
+  const rows = $$('#linkRows .link-row');
+  const links = [];
+  for(const row of rows){
+    const url = row.querySelector('.link-url').value.trim();
+    const nota = row.querySelector('.link-nota').value.trim();
+    if(url) links.push({ id: uid(), url, nota });
+  }
+  return links;
+}
+
+/* ════════════════════════════
    MODAL TARJETA
 ════════════════════════════ */
 function openCardModal(id, initialCol){
@@ -655,14 +655,14 @@ function openCardModal(id, initialCol){
     $('#f_desc').value = c.desc || '';
     fillResponsableSelect($('#f_autor'), '— Selecciona —', c.autor);
     fillResponsableSelect($('#f_revisor'), '— Sin asignar —', c.revisor);
+    $('#f_estado').value = c.estado || 'pendiente';
     $('#cardDeleteBtn').style.display = 'inline-flex';
-    $('#recursosSection').classList.remove('hidden');
-    renderRecursos(c);
+    renderLinkRows(c.links);
   } else {
     $('#modalTitle').textContent = 'Nueva revisión';
+    $('#f_estado').value = 'pendiente';
     $('#cardDeleteBtn').style.display = 'none';
-    $('#recursosSection').classList.add('hidden');
-    $('#recursosList').innerHTML = '';
+    renderLinkRows([]);
   }
   overlay.classList.add('open');
   setTimeout(() => $('#f_title').focus(), 60);
@@ -681,29 +681,32 @@ $('#cardForm').addEventListener('submit', e => {
   const autor = $('#f_autor').value;
   if(!autor){ toast('Selecciona quién crea esta revisión'); return; }
 
+  const links = collectLinksFromForm();
+  if(links.length === 0){ toast('Agrega al menos un link de Google Doc'); return; }
+  const invalido = links.find(l => !isGoogleLink(l.url));
+  if(invalido){ toast('Todos los links deben ser de Google Docs o Drive'); return; }
+
   const data = {
     title: $('#f_title').value.trim(),
     desc: $('#f_desc').value.trim(),
     autor,
     revisor: $('#f_revisor').value,
+    estado: $('#f_estado').value,
+    links,
   };
 
   if(editingCardId){
     const c = state.cards.find(x => x.id === editingCardId);
     Object.assign(c, data);
-    closeCardModal();
-    render();
-    scheduleSave();
   } else {
-    const newCard = { id: uid(), col: $('#cardForm').dataset.col || 'preprod', createdAt: new Date().toISOString(), recursos: [], ...data };
-    state.cards.push(newCard);
-    render();
-    scheduleSave();
-    // Reabrir en modo edición para poder agregar links de inmediato
-    toast('Revisión creada. Ya puedes agregar links.');
-    openCardModal(newCard.id);
+    state.cards.push({ id: uid(), col: form.dataset.col || 'preprod', createdAt: new Date().toISOString(), ...data });
   }
+  closeCardModal();
+  render();
+  scheduleSave();
 });
+
+const form = $('#cardForm');
 
 $('#cardDeleteBtn').addEventListener('click', () => {
   if(!editingCardId) return;
@@ -715,116 +718,6 @@ $('#cardDeleteBtn').addEventListener('click', () => {
     scheduleSave();
     toast('Revisión eliminada');
   });
-});
-
-/* ════════════════════════════
-   RECURSOS (links + feedback)
-════════════════════════════ */
-function renderRecursos(card){
-  const list = $('#recursosList');
-  fillResponsableSelect($('#r_autor'), 'Subido por…', '');
-
-  if(!card.recursos || card.recursos.length === 0){
-    list.innerHTML = '<div class="no-recursos">Aún no hay links en esta revisión.</div>';
-    return;
-  }
-
-  list.innerHTML = card.recursos.map(r => {
-    const est = ESTADOS[r.estado] || ESTADOS.pendiente;
-    const comentariosHtml = (r.comentarios || []).map(cm => `
-      <div class="comentario${cm.sistema ? ' sistema' : ''}">
-        ${cm.sistema ? '' : `<strong>${escapeHtml(cm.autor)}:</strong> `}${escapeHtml(cm.texto)}
-        <span class="fecha">${fmtRelative(cm.fecha)}</span>
-      </div>
-    `).join('');
-
-    let actorOptions = '<option value="">Actuando como…</option>' + responsables.map(r2 => `<option value="${escapeHtml(r2)}">${escapeHtml(r2)}</option>`).join('');
-
-    return `
-      <div class="recurso-item" data-id="${r.id}">
-        <div class="recurso-head">
-          <a class="recurso-link" href="${escapeHtml(r.url)}" target="_blank" rel="noopener">🔗 Ver en Drive</a>
-          <span class="estado-badge ${est.cls}">${est.label}</span>
-        </div>
-        <div class="recurso-meta">Subido por ${escapeHtml(r.autor || 'sin nombre')} · ${fmtRelative(r.createdAt)}</div>
-        ${r.nota ? `<p class="recurso-nota">${escapeHtml(r.nota)}</p>` : ''}
-        <div class="comentarios-list">${comentariosHtml}</div>
-        <div class="recurso-actions">
-          <select class="actor-select" data-recurso="${r.id}">${actorOptions}</select>
-          <input type="text" class="comentario-input" data-recurso="${r.id}" placeholder="Escribe feedback...">
-          <button type="button" class="btn ghost sm" data-action="comentar" data-recurso="${r.id}">Comentar</button>
-          <button type="button" class="btn ghost sm approve" data-action="aprobar" data-recurso="${r.id}">✅ Aprobar</button>
-          <button type="button" class="btn ghost sm changes" data-action="cambios" data-recurso="${r.id}">✏️ Cambios</button>
-        </div>
-      </div>
-    `;
-  }).join('');
-
-  list.querySelectorAll('[data-action]').forEach(btn => {
-    btn.addEventListener('click', () => handleRecursoAction(btn.dataset.action, btn.dataset.recurso));
-  });
-}
-
-function getActorFor(recursoId){
-  const sel = document.querySelector(`.actor-select[data-recurso="${recursoId}"]`);
-  return sel ? sel.value : '';
-}
-
-function handleRecursoAction(action, recursoId){
-  if(!editingCardId) return;
-  const card = state.cards.find(c => c.id === editingCardId);
-  if(!card) return;
-  const recurso = card.recursos.find(r => r.id === recursoId);
-  if(!recurso) return;
-
-  const actor = getActorFor(recursoId);
-  if(!actor){ toast('Selecciona quién está actuando'); return; }
-
-  if(action === 'comentar'){
-    const input = document.querySelector(`.comentario-input[data-recurso="${recursoId}"]`);
-    const texto = input.value.trim();
-    if(!texto){ toast('Escribe un comentario primero'); return; }
-    recurso.comentarios = recurso.comentarios || [];
-    recurso.comentarios.push({ id: uid(), autor: actor, texto, fecha: new Date().toISOString() });
-  } else if(action === 'aprobar'){
-    recurso.estado = 'aprobado';
-    recurso.comentarios = recurso.comentarios || [];
-    recurso.comentarios.push({ id: uid(), sistema:true, texto: `${actor} aprobó este recurso ✅`, fecha: new Date().toISOString() });
-  } else if(action === 'cambios'){
-    recurso.estado = 'cambios';
-    recurso.comentarios = recurso.comentarios || [];
-    recurso.comentarios.push({ id: uid(), sistema:true, texto: `${actor} solicitó cambios ✏️`, fecha: new Date().toISOString() });
-  }
-
-  renderRecursos(card);
-  render();
-  scheduleSave();
-}
-
-$('#addRecursoBtn').addEventListener('click', () => {
-  if(!editingCardId) return;
-  const url = $('#r_url').value.trim();
-  const autor = $('#r_autor').value;
-  const nota = $('#r_nota').value.trim();
-
-  if(!url){ toast('Pega un link primero'); return; }
-  if(!isDriveLink(url)){ toast('Debe ser un link de Google Drive'); return; }
-  if(!autor){ toast('Selecciona quién sube el link'); return; }
-
-  const card = state.cards.find(c => c.id === editingCardId);
-  if(!card) return;
-  card.recursos = card.recursos || [];
-  card.recursos.push({
-    id: uid(), url, autor, nota, estado: 'pendiente',
-    createdAt: new Date().toISOString(), comentarios: []
-  });
-
-  $('#r_url').value = '';
-  $('#r_nota').value = '';
-  renderRecursos(card);
-  render();
-  scheduleSave();
-  toast('Link agregado');
 });
 
 /* ════════════════════════════
