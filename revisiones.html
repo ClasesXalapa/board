@@ -61,6 +61,7 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
 .col-count{ background:var(--panel-2); color:var(--text-dim); font-size:11.5px; padding:2px 7px; border-radius:20px; }
 .column[data-col="preprod"] .column-title{ color:#9fc7ff; }
 .column[data-col="edicion"] .column-title{ color:#f0b94d; }
+.column[data-col="final"]   .column-title{ color:#c89bf0; }
 .column[data-col="listo"]   .column-title{ color:#5fb98c; }
 
 .column-body{ padding:4px 10px 10px; overflow-y:auto; flex:1; display:flex; flex-direction:column; gap:8px; }
@@ -270,7 +271,8 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
       <label>Incluir fases</label>
       <label class="check-inline" style="margin-bottom:8px;"><input type="checkbox" id="rep_preprod" checked> Pre-producción</label><br>
       <label class="check-inline" style="margin-bottom:8px;"><input type="checkbox" id="rep_edicion" checked> Edición</label><br>
-      <label class="check-inline" style="margin-bottom:8px;"><input type="checkbox" id="rep_listo" checked> Listo para publicar</label>
+      <label class="check-inline" style="margin-bottom:8px;"><input type="checkbox" id="rep_final" checked> Revisión final</label><br>
+      <label class="check-inline" style="margin-bottom:8px;"><input type="checkbox" id="rep_listo" checked> Listo</label>
     </div>
     <div class="field">
       <label class="check-inline"><input type="checkbox" id="rep_onlyPending" checked> Solo cards por atender</label>
@@ -295,7 +297,8 @@ const STORAGE_GIST_KEY  = 'metiche_gist_id';
 const COLUMNS = [
   { id:'preprod', label:'Pre-producción' },
   { id:'edicion',  label:'Edición' },
-  { id:'listo',    label:'Listo para publicar' },
+  { id:'final',    label:'Revisión final' },
+  { id:'listo',    label:'Listo' },
 ];
 
 let token         = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
@@ -552,7 +555,13 @@ function render(){
     body.addEventListener('drop', onDrop);
   });
   $$('.add-card-btn').forEach(btn => {
-    btn.addEventListener('click', () => openCardModal(null, btn.dataset.col));
+    btn.addEventListener('click', () => {
+      if(btn.dataset.col === 'listo'){
+        checkPassword().then(ok => { if(ok) openCardModal(null, btn.dataset.col); });
+      } else {
+        openCardModal(null, btn.dataset.col);
+      }
+    });
   });
 }
 
@@ -646,13 +655,30 @@ function onDrop(e){
 
   const ph = getPlaceholder();
   const afterEl = getDragAfterElement(body, e.clientY);
-  let insertBeforeId = (afterEl && afterEl.dataset.id) ? afterEl.dataset.id : null;
+  const insertBeforeId = (afterEl && afterEl.dataset.id) ? afterEl.dataset.id : null;
+
+  if(ph && ph.parentNode) ph.parentNode.removeChild(ph);
+  placeholder = null;
 
   const card = state.cards.find(c => c.id === draggedId);
   if(!card) return;
-  card.col = newCol;
 
-  state.cards = state.cards.filter(c => c.id !== draggedId);
+  if(newCol === 'listo' && card.col !== 'listo'){
+    checkPassword().then(ok => {
+      if(ok) performMove(card, newCol, insertBeforeId);
+      else render(); // revertir visualmente, no se movió nada en el estado
+    });
+  } else {
+    performMove(card, newCol, insertBeforeId);
+  }
+}
+
+function performMove(card, newCol, insertBeforeId){
+  const changedColumn = card.col !== newCol;
+  card.col = newCol;
+  if(changedColumn) card.estado = 'pendiente';
+
+  state.cards = state.cards.filter(c => c.id !== card.id);
   if(insertBeforeId){
     const idx = state.cards.findIndex(c => c.id === insertBeforeId);
     if(idx !== -1) state.cards.splice(idx, 0, card);
@@ -662,8 +688,6 @@ function onDrop(e){
     state.cards.splice(lastInCol + 1, 0, card);
   }
 
-  if(ph && ph.parentNode) ph.parentNode.removeChild(ph);
-  placeholder = null;
   render();
   scheduleSave();
 }
@@ -848,8 +872,8 @@ $('#refreshBtn').addEventListener('click', () => { toast('Actualizando...'); loa
 /* ════════════════════════════
    REPORTE WHATSAPP
 ════════════════════════════ */
-const COL_LABELS_REP = { preprod:'Pre-producción', edicion:'Edición', listo:'Listo para publicar' };
-const COL_EMOJI_REP  = { preprod:'🔵', edicion:'🟡', listo:'🟢' };
+const COL_LABELS_REP = { preprod:'Pre-producción', edicion:'Edición', final:'Revisión final', listo:'Listo' };
+const COL_EMOJI_REP  = { preprod:'🔵', edicion:'🟡', final:'🟣', listo:'🟢' };
 
 $('#reportBtn').addEventListener('click', () => $('#reportOverlay').classList.add('open'));
 $('#reportCancelBtn').addEventListener('click', () => $('#reportOverlay').classList.remove('open'));
@@ -859,6 +883,7 @@ $('#reportGenerateBtn').addEventListener('click', () => {
   const cols = [];
   if($('#rep_preprod').checked) cols.push('preprod');
   if($('#rep_edicion').checked) cols.push('edicion');
+  if($('#rep_final').checked) cols.push('final');
   if($('#rep_listo').checked) cols.push('listo');
   if(cols.length === 0){ toast('Elige al menos una fase'); return; }
 
