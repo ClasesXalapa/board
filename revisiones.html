@@ -218,11 +218,23 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
             <option value="">— Selecciona —</option>
           </select>
         </div>
-        <div class="field">
+        <div class="field" id="revisorNormalWrap">
           <label>Revisor asignado</label>
           <select id="f_revisor">
             <option value="">— Sin asignar —</option>
           </select>
+        </div>
+      </div>
+      <div class="row2 hidden" id="revisorFinalWrap">
+        <div class="field">
+          <label>Revisor previo</label>
+          <select id="f_revisorPrevio">
+            <option value="">— Sin asignar —</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Revisor final</label>
+          <input type="text" id="f_revisorFinalDisplay" value="Josué" disabled>
         </div>
       </div>
       <div class="field">
@@ -571,11 +583,10 @@ const ESTADOS = {
   aceptado:  { label:'🟢 Aceptado', cls:'aceptado' },
 };
 
-function personTag(name, isRevisor){
+function personTag(name, prefix){
   if(!name) return '';
   const c = personColor(name);
-  const arrow = isRevisor ? '→ ' : '';
-  return `<span class="people-tag${isRevisor ? ' revisor' : ''}" style="color:${c.text}; border-color:${c.border};"><span class="avatar" style="color:${c.text}; border-color:${c.border}; background:${c.bg};">${initials(name)}</span>${arrow}${escapeHtml(name)}</span>`;
+  return `<span class="people-tag${prefix ? ' revisor' : ''}" style="color:${c.text}; border-color:${c.border};"><span class="avatar" style="color:${c.text}; border-color:${c.border}; background:${c.bg};">${initials(name)}</span>${prefix || ''}${escapeHtml(name)}</span>`;
 }
 
 function renderCard(c){
@@ -586,13 +597,14 @@ function renderCard(c){
   const n = (c.links || []).length;
   const est = ESTADOS[c.estado] || ESTADOS.pendiente;
 
+  const peopleHtml = isFinalStage(c.col)
+    ? personTag(c.autor) + personTag(c.revisorPrevio, 'Previo: ') + personTag(c.revisorFinal, 'Final: ')
+    : personTag(c.autor) + personTag(c.revisor, '→ ');
+
   div.innerHTML = `
     <p class="card-title">${escapeHtml(c.title)}</p>
     ${c.desc ? `<p class="card-desc">${escapeHtml(c.desc)}</p>` : ''}
-    <div class="card-people">
-      ${personTag(c.autor, false)}
-      ${personTag(c.revisor, true)}
-    </div>
+    <div class="card-people">${peopleHtml}</div>
     <div class="card-footer">
       <span class="estado-badge ${est.cls}">${est.label}</span>
       <span class="links-count">🔗 ${n} link${n !== 1 ? 's' : ''}</span>
@@ -675,8 +687,14 @@ function onDrop(e){
 
 function performMove(card, newCol, insertBeforeId){
   const changedColumn = card.col !== newCol;
+  const wasFinalStage = isFinalStage(card.col);
   card.col = newCol;
   if(changedColumn) card.estado = 'pendiente';
+
+  if(isFinalStage(newCol) && !wasFinalStage){
+    card.revisorPrevio = card.revisor || '';
+    card.revisorFinal = REVISOR_FINAL;
+  }
 
   state.cards = state.cards.filter(c => c.id !== card.id);
   if(insertBeforeId){
@@ -732,6 +750,9 @@ function collectLinksFromForm(){
 /* ════════════════════════════
    MODAL TARJETA
 ════════════════════════════ */
+const REVISOR_FINAL = 'Josué';
+function isFinalStage(col){ return col === 'final' || col === 'listo'; }
+
 function openCardModal(id, initialCol){
   editingCardId = id;
   const overlay = $('#cardOverlay');
@@ -741,15 +762,20 @@ function openCardModal(id, initialCol){
 
   fillResponsableSelect($('#f_autor'), '— Selecciona —', '');
   fillResponsableSelect($('#f_revisor'), '— Sin asignar —', '');
+  fillResponsableSelect($('#f_revisorPrevio'), '— Sin asignar —', '');
+
+  let col = initialCol || 'preprod';
 
   if(id){
     const c = state.cards.find(x => x.id === id);
     if(!c) return;
+    col = c.col;
     $('#modalTitle').textContent = 'Editar revisión';
     $('#f_title').value = c.title;
     $('#f_desc').value = c.desc || '';
     fillResponsableSelect($('#f_autor'), '— Selecciona —', c.autor);
     fillResponsableSelect($('#f_revisor'), '— Sin asignar —', c.revisor);
+    fillResponsableSelect($('#f_revisorPrevio'), '— Sin asignar —', c.revisorPrevio || c.revisor || '');
     $('#f_estado').value = c.estado || 'pendiente';
     $('#cardDeleteBtn').style.display = 'inline-flex';
     renderLinkRows(c.links);
@@ -759,6 +785,11 @@ function openCardModal(id, initialCol){
     $('#cardDeleteBtn').style.display = 'none';
     renderLinkRows([]);
   }
+
+  const final = isFinalStage(col);
+  $('#revisorNormalWrap').classList.toggle('hidden', final);
+  $('#revisorFinalWrap').classList.toggle('hidden', !final);
+
   overlay.classList.add('open');
   setTimeout(() => $('#f_title').focus(), 60);
 }
@@ -781,14 +812,23 @@ $('#cardForm').addEventListener('submit', e => {
   const invalido = links.find(l => !isGoogleLink(l.url));
   if(invalido){ toast('Todos los links deben ser de Google Docs o Drive'); return; }
 
+  const col = editingCardId ? (state.cards.find(x => x.id === editingCardId) || {}).col : (form.dataset.col || 'preprod');
+  const final = isFinalStage(col);
+
   const data = {
     title: $('#f_title').value.trim(),
     desc: $('#f_desc').value.trim(),
     autor,
-    revisor: $('#f_revisor').value,
     estado: $('#f_estado').value,
     links,
   };
+
+  if(final){
+    data.revisorPrevio = $('#f_revisorPrevio').value;
+    data.revisorFinal = REVISOR_FINAL;
+  } else {
+    data.revisor = $('#f_revisor').value;
+  }
 
   if(editingCardId){
     const c = state.cards.find(x => x.id === editingCardId);
