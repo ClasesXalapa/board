@@ -11,7 +11,7 @@
   --accent:#ff5c39; --accent-soft:rgba(255,92,57,.14);
   --pink:#ff7ea3; --radius:10px; --font:'Inter',-apple-system,sans-serif;
   --font-display:'Fraunces', Georgia, serif;
-  --est-pendiente:#f0c850; --est-cambios:#f0904d; --est-aceptado:#5fb98c;
+  --est-trabajando:#9fc7ff; --est-pendiente:#f0c850; --est-cambios:#f0904d; --est-aceptado:#5fb98c;
 }
 *{ box-sizing:border-box; margin:0; padding:0; }
 html,body{ background:var(--bg); color:var(--text); font-family:var(--font); min-height:100vh; }
@@ -79,6 +79,7 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
 }
 .card:active{ cursor:grabbing; }
 .card.dragging{ opacity:.4; }
+.card.st-trabajando{ background:rgba(159,199,255,.07); border-color:rgba(159,199,255,.35); }
 .card.st-pendiente{ background:rgba(240,200,80,.08); border-color:rgba(240,200,80,.4); }
 .card.st-cambios{ background:rgba(240,144,77,.10); border-color:rgba(240,144,77,.4); }
 .card-placeholder{ border:2px dashed var(--pink); border-radius:8px; height:64px; background:rgba(255,126,163,.08); pointer-events:none; flex-shrink:0; }
@@ -103,6 +104,7 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
 
 .card-footer{ display:flex; align-items:center; justify-content:space-between; gap:8px; }
 .estado-badge{ font-size:10.5px; font-weight:700; padding:3px 9px; border-radius:20px; letter-spacing:.02em; white-space:nowrap; }
+.estado-badge.trabajando{ color:var(--est-trabajando); background:rgba(159,199,255,.14); }
 .estado-badge.pendiente{ color:var(--est-pendiente); background:rgba(240,200,80,.16); }
 .estado-badge.cambios{ color:var(--est-cambios); background:rgba(240,144,77,.16); }
 .estado-badge.aceptado{ color:var(--est-aceptado); background:rgba(95,185,140,.14); }
@@ -252,6 +254,7 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
       <div class="field">
         <label>Estado</label>
         <select id="f_estado">
+          <option value="trabajando">🔵 Trabajando</option>
           <option value="pendiente">🟡 Pendiente de revisión</option>
           <option value="cambios">🟠 Cambios solicitados</option>
           <option value="aceptado">🟢 Aceptado</option>
@@ -476,7 +479,7 @@ async function loadAll(){
     state.docs = [];
   }
   state.cards.forEach(c => {
-    if(!c.estado) c.estado = 'pendiente';
+    if(!c.estado) c.estado = 'trabajando';
     // Migración desde el modelo anterior de links múltiples a un solo documento
     if(!c.docUrl && c.links && c.links.length > 0){
       c.docUrl = c.links[0].url;
@@ -631,9 +634,10 @@ function render(){
 }
 
 const ESTADOS = {
-  pendiente: { label:'🟡 Pendiente', cls:'pendiente' },
-  cambios:   { label:'🟠 Cambios solicitados', cls:'cambios' },
-  aceptado:  { label:'🟢 Aceptado', cls:'aceptado' },
+  trabajando: { label:'🔵 Trabajando', cls:'trabajando' },
+  pendiente:  { label:'🟡 Pendiente', cls:'pendiente' },
+  cambios:    { label:'🟠 Cambios solicitados', cls:'cambios' },
+  aceptado:   { label:'🟢 Aceptado', cls:'aceptado' },
 };
 
 function personTag(name, prefix){
@@ -645,11 +649,12 @@ function personTag(name, prefix){
 function renderCard(c){
   const div = document.createElement('div');
   div.className = 'card';
-  if(c.estado === 'pendiente') div.classList.add('st-pendiente');
+  if(c.estado === 'trabajando') div.classList.add('st-trabajando');
+  else if(c.estado === 'pendiente') div.classList.add('st-pendiente');
   else if(c.estado === 'cambios') div.classList.add('st-cambios');
   div.draggable = true;
   div.dataset.id = c.id;
-  const est = ESTADOS[c.estado] || ESTADOS.pendiente;
+  const est = ESTADOS[c.estado] || ESTADOS.trabajando;
 
   const peopleHtml = isFinalStage(c.col)
     ? personTag(c.autor) + personTag(c.revisorPrevio, 'Previo: ') + personTag(c.revisorFinal, 'Final: ')
@@ -743,7 +748,7 @@ function performMove(card, newCol, insertBeforeId){
   const changedColumn = card.col !== newCol;
   const wasFinalStage = isFinalStage(card.col);
   card.col = newCol;
-  if(changedColumn) card.estado = 'pendiente';
+  if(changedColumn) card.estado = 'trabajando';
 
   if(isFinalStage(newCol) && !wasFinalStage){
     card.revisorPrevio = card.revisor || '';
@@ -849,7 +854,7 @@ function openCardModal(id, initialCol){
     populateDocSelectForAutor(c.autor, c.docUrl || null);
   } else {
     $('#modalTitle').textContent = 'Nueva revisión';
-    $('#f_estado').value = 'pendiente';
+    $('#f_estado').value = 'trabajando';
     $('#cardDeleteBtn').style.display = 'none';
   }
 
@@ -1036,7 +1041,7 @@ function generateReport(list, cols){
     if(items.length === 0) return;
     text += `${COL_EMOJI_REP[col]} *${COL_LABELS_REP[col].toUpperCase()}*\n\n`;
     items.forEach(c => {
-      const est = ESTADOS[c.estado] || ESTADOS.pendiente;
+      const est = ESTADOS[c.estado] || ESTADOS.trabajando;
       text += `📌 *${c.title}*\n`;
       text += `${est.label}\n`;
       if(c.autor)   text += `👤 *Autor:* ${c.autor}\n`;
