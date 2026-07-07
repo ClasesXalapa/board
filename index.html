@@ -1570,6 +1570,7 @@ $('#onlyCreateBtn').addEventListener('click', () => {
   scheduleSave();
   showToast('✅ 3 tareas Only creadas');
 });
+$('#cancelBtn').addEventListener('click', closeModal);
 $('#cardOverlay').addEventListener('click', (e) => {
   if(e.target.id === 'cardOverlay') closeModal();
 });
