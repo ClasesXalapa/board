@@ -785,6 +785,16 @@ main{
         <input type="checkbox" id="rep_done" style="width:auto;" checked> Done
       </label>
     </div>
+    <div class="field">
+      <label style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Responsables</span>
+        <span style="display:flex; gap:10px; text-transform:none; font-size:12px; letter-spacing:0;">
+          <a href="#" id="repRespAllBtn" style="color:var(--cyan); text-decoration:none;">Todos</a>
+          <a href="#" id="repRespNoneBtn" style="color:var(--text-dim); text-decoration:none;">Ninguno</a>
+        </span>
+      </label>
+      <div id="repRespList" style="display:flex; flex-direction:column; gap:9px; margin-top:10px; max-height:160px; overflow-y:auto;"></div>
+    </div>
     <div class="modal-actions">
       <div></div>
       <div class="right">
@@ -1787,7 +1797,37 @@ $('#reviewsBtn').addEventListener('click', () => {
 });
 
 $('#reportBtn').addEventListener('click', () => {
+  renderReportRespList();
   $('#reportOverlay').classList.add('open');
+});
+
+const SIN_ASIGNAR = '__sin_asignar__';
+
+function renderReportRespList(){
+  const wrap = $('#repRespList');
+  if(!wrap) return;
+  const prevChecked = new Set(
+    Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value)
+  );
+  const isFirstRender = wrap.dataset.rendered !== '1';
+  const options = [...state.responsables, SIN_ASIGNAR];
+  wrap.innerHTML = options.map(r => {
+    const label = r === SIN_ASIGNAR ? 'Sin asignar' : r;
+    const checked = isFirstRender ? true : prevChecked.has(r);
+    return `<label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13.5px;">
+      <input type="checkbox" class="rep-resp-cb" value="${escapeHtml(r)}" style="width:auto;" ${checked?'checked':''}> ${escapeHtml(label)}
+    </label>`;
+  }).join('');
+  wrap.dataset.rendered = '1';
+}
+
+$('#repRespAllBtn').addEventListener('click', (e) => {
+  e.preventDefault();
+  $('#repRespList').querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+});
+$('#repRespNoneBtn').addEventListener('click', (e) => {
+  e.preventDefault();
+  $('#repRespList').querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
 });
 
 $('#reportCancelBtn').addEventListener('click', () => {
@@ -1807,16 +1847,26 @@ $('#reportGenerateBtn').addEventListener('click', () => {
     showToast('Elige al menos una columna');
     return;
   }
+  const resp = Array.from($('#repRespList').querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+  if(resp.length === 0){
+    showToast('Elige al menos un responsable');
+    return;
+  }
   $('#reportOverlay').classList.remove('open');
-  generateReport(cols);
+  generateReport(cols, resp);
 });
 
 const COL_LABELS = { todo: 'To Do', doing: 'Doing', done: 'Done' };
 
-function generateReport(cols){
-  const list = state.tasks.filter(t => cols.includes(t.col));
+function generateReport(cols, resp){
+  const respSet = new Set(resp);
+  const list = state.tasks.filter(t => {
+    if(!cols.includes(t.col)) return false;
+    const key = t.assignee || SIN_ASIGNAR;
+    return respSet.has(key);
+  });
   if(list.length === 0){
-    showToast('No hay tareas en las columnas elegidas');
+    showToast('No hay tareas que cumplan con esos filtros');
     return;
   }
 

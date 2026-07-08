@@ -146,6 +146,13 @@ td.td-date{color:var(--text-muted);font-size:12px;white-space:nowrap;}
   white-space:nowrap;font-family:var(--font);
 }
 .btn-del:hover{background:var(--accent-soft);border-color:var(--accent);}
+.btn-edit{
+  background:transparent;border:1px solid var(--line);color:var(--cyan);
+  font-size:11.5px;padding:4px 10px;border-radius:6px;cursor:pointer;
+  white-space:nowrap;font-family:var(--font);margin-right:6px;
+}
+.btn-edit:hover{background:rgba(100,210,230,.1);border-color:var(--cyan);}
+.td-actions{white-space:nowrap;}
 
 /* empty / loading */
 .empty-state{text-align:center;padding:52px 20px;color:var(--text-dim);}
@@ -451,9 +458,50 @@ td.td-date{color:var(--text-muted);font-size:12px;white-space:nowrap;}
   </div>
 </div>
 
+<!-- Modal editar recurso -->
+<div class="overlay" id="editOverlay">
+  <div class="modal">
+    <h2>Editar recurso</h2>
+    <div class="row2">
+      <div class="field">
+        <label>Tipo ✱</label>
+        <select id="edit_tipo">
+          <option value="">— Selecciona —</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Categoría ✱</label>
+        <select id="edit_cat">
+          <option value="">— Selecciona —</option>
+        </select>
+      </div>
+    </div>
+    <div class="field">
+      <label>Link ✱</label>
+      <input type="url" id="edit_link" placeholder="https://...">
+    </div>
+    <div class="field">
+      <label>Descripción</label>
+      <textarea id="edit_desc" placeholder="De qué trata, contexto, proyecto al que pertenece..."></textarea>
+    </div>
+    <div class="field">
+      <label>Notas de búsqueda</label>
+      <textarea id="edit_notes" placeholder="Palabras clave para encontrar este recurso fácilmente..." style="min-height:56px;"></textarea>
+    </div>
+    <div class="modal-actions">
+      <div></div>
+      <div class="right">
+        <button type="button" class="btn ghost" id="editCancelBtn">Cancelar</button>
+        <button type="button" class="btn primary" id="editSaveBtn">Guardar cambios</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="toast" id="toast"></div>
 
 <script>
+
 /* ════════════════════════════
    CONSTANTS & STATE
 ════════════════════════════ */
@@ -593,9 +641,9 @@ $$('.tab-btn').forEach(btn=>{
    SELECTS DE TIPO
 ════════════════════════════ */
 function renderTipoSelects(){
-  ['#f_tipo','#filterTipo','#s_tipo'].forEach(sel=>{
+  ['#f_tipo','#filterTipo','#s_tipo','#edit_tipo'].forEach(sel=>{
     const el=$(sel); if(!el) return;
-    const isFilter = sel!=='#f_tipo';
+    const isFilter = sel!=='#f_tipo' && sel!=='#edit_tipo';
     const first = isFilter
       ? '<option value="">Todos los tipos</option>'
       : '<option value="">— Selecciona —</option>';
@@ -610,9 +658,9 @@ function renderTipoSelects(){
   });
 }
 function renderCatSelects(){
-  ['#f_cat','#filterCat','#s_cat'].forEach(sel=>{
+  ['#f_cat','#filterCat','#s_cat','#edit_cat'].forEach(sel=>{
     const el=$(sel); if(!el) return;
-    const isFilter = sel!=='#f_cat';
+    const isFilter = sel!=='#f_cat' && sel!=='#edit_cat';
     const first = isFilter
       ? '<option value="">Todas las categorías</option>'
       : '<option value="">— Selecciona —</option>';
@@ -722,13 +770,16 @@ function buildTable(list, showDelete){
       <td class="td-text">${esc(r.desc||'—')}</td>
       <td class="td-text">${esc(r.notes||'—')}</td>
       <td class="td-date">${fmtDate(r.fecha)}</td>
-      ${showDelete?`<td><button class="btn-del" data-id="${r.id}">Eliminar</button></td>`:''}
+      ${showDelete?`<td class="td-actions"><button class="btn-edit" data-id="${r.id}">Editar</button><button class="btn-del" data-id="${r.id}">Eliminar</button></td>`:''}
     `;
     tbody.appendChild(tr);
   });
   if(showDelete){
     tbody.querySelectorAll('.btn-del').forEach(btn=>{
       btn.addEventListener('click',()=>deleteResource(btn.dataset.id));
+    });
+    tbody.querySelectorAll('.btn-edit').forEach(btn=>{
+      btn.addEventListener('click',()=>openEditResource(btn.dataset.id));
     });
   }
   return wrap;
@@ -741,6 +792,57 @@ function deleteResource(id){
     scheduleSave(); renderBank(); toast('Recurso eliminado');
   });
 }
+
+/* ════════════════════════════
+   EDITAR RECURSO
+════════════════════════════ */
+let editingId = null;
+
+function openEditResource(id){
+  const r = state.resources.find(x=>x.id===id);
+  if(!r) return;
+  editingId = id;
+  renderTipoSelects();
+  renderCatSelects();
+  $('#edit_tipo').value  = r.tipo || '';
+  $('#edit_cat').value   = r.cat  || '';
+  $('#edit_link').value  = r.link  || '';
+  $('#edit_desc').value  = r.desc  || '';
+  $('#edit_notes').value = r.notes || '';
+  $('#editOverlay').classList.add('open');
+}
+
+$('#editCancelBtn').addEventListener('click',()=>{
+  editingId = null;
+  $('#editOverlay').classList.remove('open');
+});
+$('#editOverlay').addEventListener('click',(e)=>{
+  if(e.target.id==='editOverlay'){ editingId=null; $('#editOverlay').classList.remove('open'); }
+});
+
+$('#editSaveBtn').addEventListener('click',()=>{
+  if(!editingId) return;
+  const tipo  = $('#edit_tipo').value;
+  const cat   = $('#edit_cat').value;
+  const link  = $('#edit_link').value.trim();
+  const desc  = $('#edit_desc').value.trim();
+  const notes = $('#edit_notes').value.trim();
+
+  if(!tipo) { toast('Selecciona un tipo'); return; }
+  if(!cat)  { toast('Selecciona una categoría'); return; }
+  if(!link) { toast('El link es obligatorio'); return; }
+
+  const r = state.resources.find(x=>x.id===editingId);
+  if(!r){ editingId=null; $('#editOverlay').classList.remove('open'); return; }
+
+  r.tipo=tipo; r.cat=cat; r.link=link; r.desc=desc; r.notes=notes;
+
+  scheduleSave();
+  renderBank();
+  editingId = null;
+  $('#editOverlay').classList.remove('open');
+  toast('✅ Recurso actualizado');
+});
 
 // Filtros del banco
 document.addEventListener('change',e=>{

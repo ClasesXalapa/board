@@ -308,6 +308,16 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
     <div class="field">
       <label class="check-inline"><input type="checkbox" id="rep_onlyPending" checked> Solo cards por atender</label>
     </div>
+    <div class="field">
+      <label style="display:flex; align-items:center; justify-content:space-between;">
+        <span>Autores (responsables)</span>
+        <span style="display:flex; gap:10px; text-transform:none; font-size:12px; letter-spacing:0;">
+          <a href="#" id="repRespAllBtn" style="color:var(--cyan); text-decoration:none;">Todos</a>
+          <a href="#" id="repRespNoneBtn" style="color:var(--text-dim); text-decoration:none;">Ninguno</a>
+        </span>
+      </label>
+      <div id="repRespList" style="display:flex; flex-direction:column; gap:9px; margin-top:10px; max-height:160px; overflow-y:auto;"></div>
+    </div>
     <div class="modal-actions">
       <button type="button" class="btn ghost" id="reportCancelBtn">Cancelar</button>
       <div style="flex:1;"></div>
@@ -1001,7 +1011,39 @@ $('#refreshBtn').addEventListener('click', () => { toast('Actualizando...'); loa
 const COL_LABELS_REP = { preprod:'Pre-producción', edicion:'Edición', final:'Revisión final', listo:'Listo' };
 const COL_EMOJI_REP  = { preprod:'🔵', edicion:'🟡', final:'🟣', listo:'🟢' };
 
-$('#reportBtn').addEventListener('click', () => $('#reportOverlay').classList.add('open'));
+const SIN_ASIGNAR = '__sin_asignar__';
+
+function renderReportRespList(){
+  const wrap = $('#repRespList');
+  if(!wrap) return;
+  const prevChecked = new Set(
+    Array.from(wrap.querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value)
+  );
+  const isFirstRender = wrap.dataset.rendered !== '1';
+  const options = [...responsables, SIN_ASIGNAR];
+  wrap.innerHTML = options.map(r => {
+    const label = r === SIN_ASIGNAR ? 'Sin asignar' : r;
+    const checked = isFirstRender ? true : prevChecked.has(r);
+    return `<label style="display:flex; align-items:center; gap:8px; cursor:pointer; font-size:13.5px;">
+      <input type="checkbox" class="rep-resp-cb" value="${r}" style="width:auto;" ${checked?'checked':''}> ${label}
+    </label>`;
+  }).join('');
+  wrap.dataset.rendered = '1';
+}
+
+$('#repRespAllBtn').addEventListener('click', (e) => {
+  e.preventDefault();
+  $('#repRespList').querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = true);
+});
+$('#repRespNoneBtn').addEventListener('click', (e) => {
+  e.preventDefault();
+  $('#repRespList').querySelectorAll('input[type="checkbox"]').forEach(cb => cb.checked = false);
+});
+
+$('#reportBtn').addEventListener('click', () => {
+  renderReportRespList();
+  $('#reportOverlay').classList.add('open');
+});
 $('#reportCancelBtn').addEventListener('click', () => $('#reportOverlay').classList.remove('open'));
 $('#reportOverlay').addEventListener('click', e => { if(e.target.id === 'reportOverlay') $('#reportOverlay').classList.remove('open'); });
 
@@ -1013,7 +1055,11 @@ $('#reportGenerateBtn').addEventListener('click', () => {
   if($('#rep_listo').checked) cols.push('listo');
   if(cols.length === 0){ toast('Elige al menos una fase'); return; }
 
-  let list = state.cards.filter(c => cols.includes(c.col));
+  const resp = Array.from($('#repRespList').querySelectorAll('input[type="checkbox"]:checked')).map(cb => cb.value);
+  if(resp.length === 0){ toast('Elige al menos un autor'); return; }
+  const respSet = new Set(resp);
+
+  let list = state.cards.filter(c => cols.includes(c.col) && respSet.has(c.autor || SIN_ASIGNAR));
   if($('#rep_onlyPending').checked) list = list.filter(needsAttention);
   if(list.length === 0){ toast('No hay cards que cumplan con esos filtros'); return; }
 
