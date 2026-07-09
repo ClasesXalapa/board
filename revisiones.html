@@ -9,7 +9,7 @@
   --bg:#15161a; --panel:#1c1e24; --panel-2:#23262e; --line:#2e313b;
   --text:#ece9e2; --text-dim:#9a9da6; --text-muted:#444753;
   --accent:#ff5c39; --accent-soft:rgba(255,92,57,.14);
-  --pink:#ff7ea3; --radius:10px; --font:'Inter',-apple-system,sans-serif;
+  --pink:#ff7ea3; --cyan:#64d2e6; --radius:10px; --font:'Inter',-apple-system,sans-serif;
   --font-display:'Fraunces', Georgia, serif;
   --est-trabajando:#9fc7ff; --est-pendiente:#f0c850; --est-cambios:#f0904d; --est-aceptado:#5fb98c;
 }
@@ -39,6 +39,11 @@ header.top{
 .btn.sm{ font-size:12px; padding:6px 11px; }
 
 .status-pill{ font-size:12px; color:var(--text-dim); display:flex; align-items:center; gap:6px; }
+.conn-indicator{
+  font-size:11px; color:var(--text-dim); font-family:monospace; cursor:pointer;
+  padding:5px 9px; border:1px solid var(--line); border-radius:6px; white-space:nowrap;
+}
+.conn-indicator:hover{ color:var(--cyan); border-color:var(--cyan); }
 .dot{ width:7px; height:7px; border-radius:50%; background:#666; display:inline-block; }
 .dot.ok{ background:var(--est-aceptado); } .dot.warn{ background:#f0b94d; }
 
@@ -180,6 +185,11 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
 <div id="setupScreen" class="setup-box hidden">
   <h2>Conectar Revisiones</h2>
   <p>Pega tu token de GitHub (scope <strong>gist</strong> únicamente). Es el mismo token que usas en el Board.</p>
+  <p style="font-size:12px; color:var(--accent); background:rgba(255,120,120,.08); border:1px solid rgba(255,120,120,.25); border-radius:8px; padding:8px 10px; margin:8px 0 0;">
+    ⚠️ Importante: debe ser <strong>exactamente el mismo token</strong> que usan Josué y tus compañeras
+    — no generes uno propio. Si usas un token distinto, verás un board vacío y tus cards no se
+    van a compartir con las demás personas del equipo.
+  </p>
   <input type="password" id="tokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
   <button class="btn primary" id="connectBtn" style="width:100%;">Conectar</button>
 </div>
@@ -203,6 +213,7 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
       <button class="btn ghost" id="adminDocsBtn">⚙ Documentos</button>
       <button class="btn ghost" id="refreshBtn">Actualizar</button>
       <a class="btn ghost" href="index.html">⬅ Board</a>
+      <span class="conn-indicator" id="connIndicator" title="Click para copiar el link de invitación (todas deben ver el mismo código)">🔗 —</span>
       <button class="btn ghost" id="logoutBtn">Cambiar token</button>
     </div>
   </header>
@@ -480,6 +491,15 @@ async function ghFetch(url, opts = {}){
 }
 
 async function findOrCreateGist(){
+  // Si la URL trae ?gist=ID lo usamos directo — es la forma más confiable
+  // de asegurar que todas las editoras terminan en el MISMO board, sin
+  // depender de que la búsqueda por descripción encuentre lo correcto.
+  const urlGist = new URLSearchParams(location.search).get('gist');
+  if(urlGist && urlGist !== gistId){
+    gistId = urlGist;
+    localStorage.setItem(STORAGE_GIST_KEY, gistId);
+  }
+
   if(gistId){
     try{ await ghFetch(`https://api.github.com/gists/${gistId}`); return gistId; }
     catch(e){ gistId = ''; localStorage.removeItem(STORAGE_GIST_KEY); }
@@ -491,6 +511,28 @@ async function findOrCreateGist(){
     localStorage.setItem(STORAGE_GIST_KEY, gistId);
     return gistId;
   }
+
+  // No encontramos ningún board existente bajo la cuenta de GitHub de este
+  // token. Esto casi siempre significa que el token pegado en este
+  // navegador NO es el mismo que usa el resto del equipo: cada quien con
+  // un token distinto termina en un board separado, y las cards de las
+  // demás "desaparecen" porque nunca estuvieron en el mismo lugar.
+  // Por eso avisamos ANTES de crear nada nuevo.
+  const proceed = confirm(
+    '⚠️ No encontramos el board compartido del equipo con este token.\n\n' +
+    'Esto casi siempre pasa cuando el token pegado aquí es distinto al que ' +
+    'usan Josué y las demás editoras. Si continúas, se creará un board ' +
+    'NUEVO Y VACÍO, separado del real — cada quien vería un tablero ' +
+    'distinto y las cards de las demás no aparecerían.\n\n' +
+    'Antes de continuar, confirma con el equipo que estás usando ' +
+    'EXACTAMENTE el mismo token que ellas (o pide el link de invitación ' +
+    'con el código del board, si ya existe).\n\n' +
+    '¿Aun así quieres crear un board nuevo?'
+  );
+  if(!proceed){
+    throw new Error('Conexión cancelada: token distinto al del equipo.');
+  }
+
   const created = await ghFetch('https://api.github.com/gists', {
     method: 'POST',
     body: JSON.stringify({
@@ -507,6 +549,26 @@ async function findOrCreateGist(){
   return gistId;
 }
 
+/* Indicador de conexión: muestra un código corto del board conectado para
+   que se pueda comparar entre computadoras ("¿ves el mismo código que yo?")
+   y un botón para copiar un link de invitación que fija el board exacto
+   por URL, evitando que alguien termine sin querer en un board distinto. */
+function updateConnIndicator(){
+  const el = $('#connIndicator');
+  if(!el) return;
+  if(!gistId){ el.textContent = '🔗 —'; return; }
+  el.textContent = `🔗 ${gistId.slice(0, 6)}`;
+}
+
+$('#connIndicator').addEventListener('click', () => {
+  if(!gistId){ toast('Todavía no hay conexión activa'); return; }
+  const url = new URL(location.href);
+  url.searchParams.set('gist', gistId);
+  navigator.clipboard.writeText(url.toString())
+    .then(() => toast('Link copiado — compártelo junto con el token para asegurar que conecten al mismo board'))
+    .catch(() => toast(`Código del board: ${gistId}`));
+});
+
 /* ---------- Merge helper ----------
    Combina lo que hay en el Gist (remote) con lo último sincronizado (base)
    y el estado local (local) para no perder cambios de otras personas
@@ -516,21 +578,85 @@ async function findOrCreateGist(){
 */
 function mergeList(remote, base, local, idKey){
   remote = remote || []; base = base || []; local = local || [];
-  const keyOf = idKey ? (x => x[idKey]) : (x => x);
-  const localKeys = new Set(local.map(keyOf));
-  const result = new Map();
-  remote.forEach(item => result.set(keyOf(item), item));
-  local.forEach(item => result.set(keyOf(item), item));
-  base.forEach(item => {
-    const k = keyOf(item);
-    if(!localKeys.has(k)) result.delete(k);
+
+  // Listas de strings simples (categorías, tipos, etc.): un item cambiado
+  // es un item distinto, así que unión + respeto de eliminaciones basta.
+  if(!idKey){
+    const localSet = new Set(local);
+    const result = new Map();
+    remote.forEach(item => result.set(item, item));
+    local.forEach(item => result.set(item, item));
+    base.forEach(item => { if(!localSet.has(item)) result.delete(item); });
+    return Array.from(result.values());
+  }
+
+  // Listas de objetos con id (cards, tasks, docs, resources): fusión
+  // CAMPO POR CAMPO. Si solo mergeáramos el objeto completo, cuando dos
+  // personas editan campos distintos del mismo item casi al mismo tiempo
+  // (ej. una mueve la card de columna y otra cambia su estado), quien
+  // guarda después borraría por completo el cambio de la otra persona.
+  const remoteMap = new Map(remote.map(x => [x[idKey], x]));
+  const baseMap   = new Map(base.map(x => [x[idKey], x]));
+  const localMap  = new Map(local.map(x => [x[idKey], x]));
+
+  const orderedIds = [
+    ...remote.map(x => x[idKey]),
+    ...local.filter(x => !remoteMap.has(x[idKey])).map(x => x[idKey])
+  ];
+  const seen = new Set();
+  const result = [];
+
+  orderedIds.forEach(id => {
+    if(seen.has(id)) return;
+    seen.add(id);
+    const r = remoteMap.get(id);
+    const b = baseMap.get(id);
+    const l = localMap.get(id);
+
+    if(l && !r){
+      // No está en remote: si tampoco estaba en base, lo agregamos
+      // localmente (se mantiene). Si sí estaba en base, alguien más lo
+      // eliminó remotamente y respetamos esa eliminación.
+      if(!b) result.push(l);
+      return;
+    }
+    if(!l && r){
+      // No está en local: si estaba en base, lo eliminamos localmente
+      // (se respeta la eliminación). Si no estaba en base, es nuevo del
+      // lado remoto (otra persona lo agregó) y lo conservamos.
+      if(!b) result.push(r);
+      return;
+    }
+    if(l && r){
+      // Está en ambos lados: fusión campo por campo. Un campo gana la
+      // versión local solo si cambió respecto a lo último sincronizado;
+      // si no, se respeta lo que haya en remote (que puede traer el
+      // cambio de otra persona en ese mismo campo).
+      const merged = { ...r };
+      const keys = new Set([...Object.keys(r), ...Object.keys(l)]);
+      keys.forEach(k => {
+        const baseVal  = b ? b[k] : undefined;
+        const localVal = l[k];
+        const changedLocally = JSON.stringify(localVal) !== JSON.stringify(baseVal);
+        merged[k] = changedLocally ? localVal : r[k];
+      });
+      result.push(merged);
+    }
   });
-  return Array.from(result.values());
+
+  return result;
 }
 
 async function loadAll(){
   setSync('loading');
-  await findOrCreateGist();
+  try{
+    await findOrCreateGist();
+  }catch(e){
+    setSync('error');
+    toast(e.message || 'No se pudo conectar');
+    throw e;
+  }
+  updateConnIndicator();
   const gist = await ghFetch(`https://api.github.com/gists/${gistId}`);
 
   // Responsables: fuente de verdad es board.json (solo lectura aquí)
@@ -574,37 +700,127 @@ async function loadAll(){
   render();
 }
 
+async function fetchRevisionesFile(){
+  const gist = await ghFetch(`https://api.github.com/gists/${gistId}`);
+  const revFile = gist.files['revisiones.json'];
+  let remote = {};
+  try{ remote = JSON.parse((revFile && revFile.content) || '{}'); }catch(e){ remote = {}; }
+  return remote;
+}
+
+/* Fusiona lo que haya en `remote` con lo local, y ACTUALIZA state/lastSynced
+   en memoria (sin escribir nada al Gist). La usan tanto saveState() como
+   syncNow() para no duplicar la lógica de merge. */
+function applyRemoteMerge(remote){
+  const mergedCards = mergeList(remote.cards, lastSynced.cards, state.cards, 'id');
+  const mergedDynamicDocs = mergeList(
+    dynamicDocsOnly(remote.docs), lastSynced.docs, dynamicDocsOnly(state.docs), 'id'
+  );
+  state.cards = mergedCards;
+  state.docs = withBaseDocs(mergedDynamicDocs);
+  lastSynced = { cards: JSON.parse(JSON.stringify(mergedCards)), docs: JSON.parse(JSON.stringify(mergedDynamicDocs)) };
+  return { cards: mergedCards, docs: mergedDynamicDocs };
+}
+
 async function saveState(){
   setSync('saving');
+  const maxAttempts = 5;
+
+  for(let attempt = 1; attempt <= maxAttempts; attempt++){
+    try{
+      // 1. Leer el estado más reciente del Gist (puede tener cambios de otra editora)
+      const remote = await fetchRevisionesFile();
+
+      // 2. Fusionar eso con nuestros cambios locales
+      const merged = applyRemoteMerge(remote);
+      const payloadStr = JSON.stringify(merged, null, 2);
+
+      // 3. Escribir
+      await ghFetch(`https://api.github.com/gists/${gistId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ files: { 'revisiones.json': { content: payloadStr } } })
+      });
+
+      // 4. Confirmar: releer y comparar contra lo que acabamos de escribir.
+      // Si otra editora guardó justo después de nuestro PATCH, su escritura
+      // pisó la nuestra y el contenido no va a coincidir — en ese caso
+      // reintentamos todo el ciclo sobre el estado más fresco en vez de
+      // dar por hecho que quedó guardado.
+      const verifyGist = await ghFetch(`https://api.github.com/gists/${gistId}`);
+      const verifyFile = verifyGist.files['revisiones.json'];
+      const verifyContent = (verifyFile && verifyFile.content) || '';
+
+      if(verifyContent === payloadStr){
+        hasPendingChanges = false;
+        render();
+        setSync('ok');
+        return;
+      }
+      // Choque detectado: esperamos un poco (con variación aleatoria para
+      // no volver a chocar con la otra sesión) y reintentamos.
+      await new Promise(res => setTimeout(res, 250 + Math.random() * 500));
+    }catch(e){
+      if(attempt === maxAttempts){
+        setSync('error');
+        toast('No se pudo guardar. Revisa el token.');
+        console.error(e);
+        return;
+      }
+      await new Promise(res => setTimeout(res, 250 + Math.random() * 500));
+    }
+  }
+
+  setSync('error');
+  toast('Hubo varios cambios al mismo tiempo y no se pudo confirmar el guardado. Intenta de nuevo.');
+}
+
+/* ════════════════════════════
+   SINCRONIZACIÓN EN VIVO
+   ────────────────────────────────────────
+   Además de guardar, refrescamos el tablero desde el Gist:
+   1) periódicamente en segundo plano, para que dos editoras trabajando
+      a la vez no se queden viendo datos desactualizados por mucho tiempo, y
+   2) justo antes de mover una card a otra columna (ver onDrop), que es
+      el momento más delicado: mover de columna reinicia el estado de la
+      card a "Trabajando", así que necesitamos la versión más fresca antes
+      de decidir si eso debe pasar.
+   No escribe nada al Gist, solo lee y fusiona en memoria.
+════════════════════════════ */
+let syncInFlight = false;
+
+async function syncNow(){
+  if(saveInFlight || syncInFlight) return;
+  syncInFlight = true;
   try{
-    // Antes de guardar, volvemos a leer el Gist para no pisar cambios
-    // que otra persona haya guardado mientras trabajábamos localmente.
     const gist = await ghFetch(`https://api.github.com/gists/${gistId}`);
+
+    // Responsables: fuente de verdad es board.json (solo lectura aquí,
+    // no participa en el merge porque nadie la edita desde esta página)
+    const boardFile = gist.files['board.json'];
+    if(boardFile){
+      try{
+        const parsedBoard = JSON.parse(boardFile.content || '{}');
+        responsables = parsedBoard.responsables || [];
+      }catch(e){ /* si falla el parseo, dejamos la lista que ya teníamos */ }
+    }
+
     const revFile = gist.files['revisiones.json'];
     let remote = {};
     try{ remote = JSON.parse((revFile && revFile.content) || '{}'); }catch(e){ remote = {}; }
 
-    const mergedCards = mergeList(remote.cards, lastSynced.cards, state.cards, 'id');
-    const mergedDynamicDocs = mergeList(
-      dynamicDocsOnly(remote.docs), lastSynced.docs, dynamicDocsOnly(state.docs), 'id'
-    );
+    applyRemoteMerge(remote);
+    state.cards.forEach(c => { if(!c.estado) c.estado = 'trabajando'; });
 
-    await ghFetch(`https://api.github.com/gists/${gistId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({ files: { 'revisiones.json': { content: JSON.stringify({ cards: mergedCards, docs: mergedDynamicDocs }, null, 2) } } })
-    });
-
-    state.cards = mergedCards;
-    state.docs = withBaseDocs(mergedDynamicDocs);
-    lastSynced = { cards: JSON.parse(JSON.stringify(mergedCards)), docs: JSON.parse(JSON.stringify(mergedDynamicDocs)) };
+    populateFilterSelect();
     render();
-    setSync('ok');
   }catch(e){
-    setSync('error');
-    toast('No se pudo guardar. Revisa el token.');
-    console.error(e);
+    console.error('Error de sincronización en vivo', e);
+  } finally {
+    syncInFlight = false;
   }
 }
+
+setInterval(syncNow, 20000);
 
 /* Cola de guardado: evita que dos llamadas a saveState() se ejecuten en
    paralelo. Sin esto, dos guardados encimados (uno todavía esperando la
@@ -614,6 +830,20 @@ async function saveState(){
    3 editores moviendo cosas al mismo tiempo. */
 let saveInFlight = false;
 let saveQueued   = false;
+
+/* Si cierran la pestaña o recargan el navegador (F5) mientras hay un
+   cambio todavía sin confirmar guardado, ese cambio SÍ se pierde de
+   verdad — a diferencia del botón "Actualizar" (que fusiona), recargar
+   el navegador mata la página a medias y el guardado nunca llega a
+   completarse. Por eso avisamos con el diálogo nativo del navegador. */
+let hasPendingChanges = false;
+
+window.addEventListener('beforeunload', (e) => {
+  if(hasPendingChanges || saveInFlight){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 async function runSave(){
   if(saveInFlight){ saveQueued = true; return; }
@@ -630,6 +860,7 @@ async function runSave(){
 }
 
 function scheduleSave(){
+  hasPendingChanges = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(runSave, 500);
 }
@@ -860,7 +1091,7 @@ function onDragOver(e){
 function onDragLeave(e){
   if(!e.currentTarget.contains(e.relatedTarget)) e.currentTarget.classList.remove('drag-over');
 }
-function onDrop(e){
+async function onDrop(e){
   e.preventDefault();
   $$('.column-body').forEach(b => b.classList.remove('drag-over'));
   const body = e.currentTarget;
@@ -873,8 +1104,40 @@ function onDrop(e){
   if(ph && ph.parentNode) ph.parentNode.removeChild(ph);
   placeholder = null;
 
-  const card = state.cards.find(c => c.id === draggedId);
-  if(!card) return;
+  const movedId = draggedId;
+  const cardBefore = state.cards.find(c => c.id === movedId);
+  if(!cardBefore) return;
+
+  if(cardBefore.col === newCol){
+    // Solo se reordenó dentro de la misma columna: no cambia de fase,
+    // no hace falta resincronizar antes de aplicar.
+    performMove(cardBefore, newCol, insertBeforeId);
+    return;
+  }
+
+  // Mover de columna reinicia el estado de la card (ver performMove), así
+  // que antes de decidir eso traemos lo más reciente del Gist — evita que
+  // una editora, con datos desactualizados, le resetee sin querer un
+  // estado que la otra acababa de actualizar.
+  await syncNow();
+  const card = state.cards.find(c => c.id === movedId);
+  if(!card){ toast('Esta card ya no existe (puede que alguien la haya eliminado)'); render(); return; }
+  if(card.col === newCol){
+    // Ya está en esa columna (alguien más la movió mientras sincronizábamos)
+    render();
+    return;
+  }
+
+  const ESTADOS_AVANZADOS = ['pendiente', 'cambios', 'aceptado'];
+  if(ESTADOS_AVANZADOS.includes(card.estado)){
+    const estLabel = (ESTADOS[card.estado] || {}).label || card.estado;
+    const ok = confirm(
+      `"${card.title}" está en estado ${estLabel}.\n\n` +
+      `Moverla a otra columna reiniciará su estado a "🔵 Trabajando".\n\n` +
+      `¿Confirmas que quieres moverla?`
+    );
+    if(!ok){ render(); return; }
+  }
 
   if(newCol === 'listo' && card.col !== 'listo'){
     checkPassword().then(ok => {
@@ -1126,7 +1389,7 @@ $('#logoutBtn').addEventListener('click', () => {
   location.reload();
 });
 
-$('#refreshBtn').addEventListener('click', () => { toast('Actualizando...'); loadAll(); });
+$('#refreshBtn').addEventListener('click', () => { toast('Actualizando...'); syncNow(); });
 
 /* ════════════════════════════
    REPORTE WHATSAPP
@@ -1220,7 +1483,7 @@ function generateReport(list, cols){
     });
   });
 
-  text += `📊 *Total de cards :* ${list.length}`;
+  text += `📊 *Total de cards:* ${list.length}`;
 
   const encoded = encodeURIComponent(text);
   const url = `https://wa.me/?text=${encoded}`;

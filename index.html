@@ -17,6 +17,7 @@
   --priority-alta: #ff5c39;
   --priority-media: #f0b94d;
   --priority-baja: #5fb98c;
+  --cyan: #64d2e6;
   --radius: 10px;
   --font-display: 'Fraunces', Georgia, serif;
   --font-body: 'Inter', -apple-system, sans-serif;
@@ -130,6 +131,11 @@ header.top{
   align-items:center;
   gap:6px;
 }
+.conn-indicator{
+  font-size:11px; color:var(--text-dim); font-family:monospace; cursor:pointer;
+  padding:5px 9px; border:1px solid var(--line); border-radius:6px; white-space:nowrap;
+}
+.conn-indicator:hover{ color:var(--cyan); border-color:var(--cyan); }
 .filter-select{
   background: var(--panel-2);
   border: 1px solid var(--line);
@@ -613,9 +619,14 @@ main{
 
 <div id="setupScreen" class="setup-box hidden">
   <h2>Conectar tablero</h2>
-  <p>Pega tu token de GitHub (scope <strong>gist</strong> únicamente) para sincronizar las tareas. Se guarda solo en este navegador.</p>
+  <p>Pega el token de GitHub del equipo (scope <strong>gist</strong> únicamente) para sincronizar las tareas. Se guarda solo en este navegador.</p>
+  <p style="font-size:12px; color:var(--accent); background:rgba(255,120,120,.08); border:1px solid rgba(255,120,120,.25); border-radius:8px; padding:8px 10px;">
+    ⚠️ Importante: todo el equipo debe usar <strong>exactamente el mismo token</strong> — pídeselo
+    a quien lo administra, no generes uno nuevo. Si usas un token distinto, vas a ver un tablero
+    vacío y tus cambios no se van a compartir con los demás.
+  </p>
   <input type="password" id="tokenInput" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx">
-  <p style="font-size:11.5px;">¿No tienes uno? Crea un token en GitHub → Settings → Developer settings → Personal access tokens → Fine-grained, con permiso exclusivo de <strong>Gists: Read and write</strong>.</p>
+  <p style="font-size:11.5px;">¿Eres quien administra el equipo y aún no existe un token? Créalo en GitHub → Settings → Developer settings → Personal access tokens → Fine-grained, con permiso exclusivo de <strong>Gists: Read and write</strong>, y compártelo de forma segura con el resto (no lo regeneres después, o todos perderán la conexión al mismo tiempo).</p>
   <button class="btn primary" id="connectBtn" style="width:100%;">Conectar</button>
 </div>
 
@@ -635,6 +646,7 @@ main{
       <button class="btn videos-btn" id="videosBtn">📦 Banco de Recursos</button>
       <button class="btn review-btn" id="reviewsBtn">🎬 Revisiones</button>
       <button class="btn admin-btn" id="adminBtn">⚙ Admin</button>
+      <span class="conn-indicator" id="connIndicator" title="Click para copiar el link de invitación (todos deben ver el mismo código)">🔗 —</span>
       <button class="btn ghost" id="logoutBtn">Cambiar token</button>
     </div>
   </header>
@@ -920,6 +932,15 @@ async function ghFetch(url, opts={}){
 }
 
 async function findOrCreateGist(){
+  // Si la URL trae ?gist=ID lo usamos directo — es la forma más confiable
+  // de asegurar que todo el equipo termina en el MISMO board, sin depender
+  // de que la búsqueda por descripción encuentre lo correcto.
+  const urlGist = new URLSearchParams(location.search).get('gist');
+  if(urlGist && urlGist !== gistId){
+    gistId = urlGist;
+    localStorage.setItem(STORAGE_GIST_KEY, gistId);
+  }
+
   if(gistId){
     try{
       await ghFetch(`https://api.github.com/gists/${gistId}`);
@@ -936,6 +957,28 @@ async function findOrCreateGist(){
     localStorage.setItem(STORAGE_GIST_KEY, gistId);
     return gistId;
   }
+
+  // No encontramos ningún board existente bajo la cuenta de GitHub de este
+  // token. Esto casi siempre significa que el token pegado en este
+  // navegador NO es el mismo que usa el resto del equipo: cada quien con
+  // un token distinto termina en un board separado, y las tareas de las
+  // demás personas "desaparecen" porque nunca estuvieron en el mismo
+  // lugar. Por eso avisamos ANTES de crear nada nuevo.
+  const proceed = confirm(
+    '⚠️ No encontramos el tablero compartido del equipo con este token.\n\n' +
+    'Esto casi siempre pasa cuando el token pegado aquí es distinto al que ' +
+    'usan las demás personas del equipo. Si continúas, se creará un ' +
+    'tablero NUEVO Y VACÍO, separado del real — cada quien vería un ' +
+    'tablero distinto y las tareas de las demás no aparecerían.\n\n' +
+    'Antes de continuar, confirma con el equipo que estás usando ' +
+    'EXACTAMENTE el mismo token que ellas (o pide el link de invitación ' +
+    'con el código del tablero, si ya existe).\n\n' +
+    '¿Aun así quieres crear un tablero nuevo?'
+  );
+  if(!proceed){
+    throw new Error('Conexión cancelada: token distinto al del equipo.');
+  }
+
   const created = await ghFetch('https://api.github.com/gists', {
     method: 'POST',
     body: JSON.stringify({
@@ -949,6 +992,25 @@ async function findOrCreateGist(){
   return gistId;
 }
 
+/* Indicador de conexión: muestra un código corto del tablero conectado
+   para poder comparar entre computadoras, y copia un link de invitación
+   que fija el tablero exacto por URL. */
+function updateConnIndicator(){
+  const el = $('#connIndicator');
+  if(!el) return;
+  if(!gistId){ el.textContent = '🔗 —'; return; }
+  el.textContent = `🔗 ${gistId.slice(0, 6)}`;
+}
+
+$('#connIndicator').addEventListener('click', () => {
+  if(!gistId){ showToast('Todavía no hay conexión activa'); return; }
+  const url = new URL(location.href);
+  url.searchParams.set('gist', gistId);
+  navigator.clipboard.writeText(url.toString())
+    .then(() => showToast('Link copiado — compártelo junto con el token para asegurar que conecten al mismo tablero'))
+    .catch(() => showToast(`Código del tablero: ${gistId}`));
+});
+
 /* ---------- Merge helper ----------
    Combina lo que hay en el Gist (remote) con lo último sincronizado (base)
    y el estado local (local) para no perder cambios de otras personas
@@ -957,16 +1019,63 @@ async function findOrCreateGist(){
 */
 function mergeList(remote, base, local, idKey){
   remote = remote || []; base = base || []; local = local || [];
-  const keyOf = idKey ? (x => x[idKey]) : (x => x);
-  const localKeys = new Set(local.map(keyOf));
-  const result = new Map();
-  remote.forEach(item => result.set(keyOf(item), item));
-  local.forEach(item => result.set(keyOf(item), item));
-  base.forEach(item => {
-    const k = keyOf(item);
-    if(!localKeys.has(k)) result.delete(k);
+
+  // Listas de strings simples (categorías, responsables): un item cambiado
+  // es un item distinto, así que unión + respeto de eliminaciones basta.
+  if(!idKey){
+    const localSet = new Set(local);
+    const result = new Map();
+    remote.forEach(item => result.set(item, item));
+    local.forEach(item => result.set(item, item));
+    base.forEach(item => { if(!localSet.has(item)) result.delete(item); });
+    return Array.from(result.values());
+  }
+
+  // Listas de objetos con id (tasks, resources): fusión CAMPO POR CAMPO.
+  // Si solo mergeáramos el objeto completo, cuando dos personas editan
+  // campos distintos del mismo item casi al mismo tiempo (ej. una mueve
+  // la tarea de columna y otra le cambia el responsable), quien guarda
+  // después borraría por completo el cambio de la otra persona.
+  const remoteMap = new Map(remote.map(x => [x[idKey], x]));
+  const baseMap   = new Map(base.map(x => [x[idKey], x]));
+  const localMap  = new Map(local.map(x => [x[idKey], x]));
+
+  const orderedIds = [
+    ...remote.map(x => x[idKey]),
+    ...local.filter(x => !remoteMap.has(x[idKey])).map(x => x[idKey])
+  ];
+  const seen = new Set();
+  const result = [];
+
+  orderedIds.forEach(id => {
+    if(seen.has(id)) return;
+    seen.add(id);
+    const r = remoteMap.get(id);
+    const b = baseMap.get(id);
+    const l = localMap.get(id);
+
+    if(l && !r){
+      if(!b) result.push(l);
+      return;
+    }
+    if(!l && r){
+      if(!b) result.push(r);
+      return;
+    }
+    if(l && r){
+      const merged = { ...r };
+      const keys = new Set([...Object.keys(r), ...Object.keys(l)]);
+      keys.forEach(k => {
+        const baseVal  = b ? b[k] : undefined;
+        const localVal = l[k];
+        const changedLocally = JSON.stringify(localVal) !== JSON.stringify(baseVal);
+        merged[k] = changedLocally ? localVal : r[k];
+      });
+      result.push(merged);
+    }
   });
-  return Array.from(result.values());
+
+  return result;
 }
 
 function snapshotState(s){
@@ -980,7 +1089,14 @@ function snapshotState(s){
 
 async function loadBoard(){
   setSync('loading');
-  await findOrCreateGist();
+  try{
+    await findOrCreateGist();
+  }catch(e){
+    setSync('error');
+    showToast(e.message || 'No se pudo conectar');
+    throw e;
+  }
+  updateConnIndicator();
   const gist = await ghFetch(`https://api.github.com/gists/${gistId}`);
   const fileContent = gist.files['board.json'].content;
   state = JSON.parse(fileContent || '{"tasks":[],"resources":[],"categories":[],"responsables":[]}');
@@ -993,43 +1109,113 @@ async function loadBoard(){
   render();
 }
 
+async function fetchBoardFile(){
+  const gist = await ghFetch(`https://api.github.com/gists/${gistId}`);
+  let remote = {};
+  try{ remote = JSON.parse(gist.files['board.json'].content || '{}'); }catch(e){ remote = {}; }
+  return remote;
+}
+
+function applyRemoteMerge(remote){
+  const merged = {
+    tasks:        mergeList(remote.tasks,        lastSynced.tasks,        state.tasks,        'id'),
+    resources:    mergeList(remote.resources,     lastSynced.resources,    state.resources,     'id'),
+    categories:   mergeList(remote.categories,    lastSynced.categories,   state.categories),
+    responsables: mergeList(remote.responsables,  lastSynced.responsables, state.responsables)
+  };
+  state = merged;
+  lastSynced = snapshotState(state);
+  return merged;
+}
+
 async function saveBoard(){
   setSync('saving');
+  const maxAttempts = 5;
+
+  for(let attempt = 1; attempt <= maxAttempts; attempt++){
+    try{
+      // 1. Leer el estado más reciente del Gist (puede tener cambios de otra persona)
+      const remote = await fetchBoardFile();
+
+      // 2. Fusionar eso con nuestros cambios locales
+      const merged = applyRemoteMerge(remote);
+      const payloadStr = JSON.stringify(merged, null, 2);
+
+      // 3. Escribir
+      await ghFetch(`https://api.github.com/gists/${gistId}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ files: { 'board.json': { content: payloadStr } } })
+      });
+
+      // 4. Confirmar: releer y comparar. Si otra persona guardó justo
+      // después de nuestro PATCH, su escritura pisó la nuestra y el
+      // contenido no va a coincidir — reintentamos sobre el estado fresco
+      // en vez de asumir que quedó guardado.
+      const verifyGist = await ghFetch(`https://api.github.com/gists/${gistId}`);
+      const verifyContent = (verifyGist.files['board.json'] && verifyGist.files['board.json'].content) || '';
+
+      if(verifyContent === payloadStr){
+        hasPendingChanges = false;
+        render();
+        setSync('ok');
+        return;
+      }
+      await new Promise(res => setTimeout(res, 250 + Math.random() * 500));
+    }catch(e){
+      if(attempt === maxAttempts){
+        setSync('error');
+        showToast('No se pudo guardar. Revisa el token.');
+        console.error(e);
+        return;
+      }
+      await new Promise(res => setTimeout(res, 250 + Math.random() * 500));
+    }
+  }
+
+  setSync('error');
+  showToast('Hubo varios cambios al mismo tiempo y no se pudo confirmar el guardado. Intenta de nuevo.');
+}
+
+/* Sincronización en segundo plano: refresca el tablero desde el Gist
+   periódicamente para que dos personas trabajando a la vez no se queden
+   viendo datos desactualizados por mucho tiempo. Solo lee y fusiona en
+   memoria, no escribe nada. */
+let syncInFlight = false;
+
+async function syncNow(){
+  if(saveInFlight || syncInFlight) return;
+  syncInFlight = true;
   try{
-    // Antes de guardar, volvemos a leer el Gist para no pisar cambios
-    // que otra persona haya guardado mientras trabajábamos localmente.
-    const gist = await ghFetch(`https://api.github.com/gists/${gistId}`);
-    let remote = {};
-    try{ remote = JSON.parse(gist.files['board.json'].content || '{}'); }catch(e){ remote = {}; }
-
-    state = {
-      tasks:        mergeList(remote.tasks,        lastSynced.tasks,        state.tasks,        'id'),
-      resources:    mergeList(remote.resources,     lastSynced.resources,    state.resources,     'id'),
-      categories:   mergeList(remote.categories,    lastSynced.categories,   state.categories),
-      responsables: mergeList(remote.responsables,  lastSynced.responsables, state.responsables)
-    };
-
-    await ghFetch(`https://api.github.com/gists/${gistId}`, {
-      method: 'PATCH',
-      body: JSON.stringify({
-        files: { 'board.json': { content: JSON.stringify(state, null, 2) } }
-      })
-    });
-    lastSynced = snapshotState(state);
+    const remote = await fetchBoardFile();
+    applyRemoteMerge(remote);
     render();
-    setSync('ok');
   }catch(e){
-    setSync('error');
-    showToast('No se pudo guardar. Revisa el token.');
-    console.error(e);
+    console.error('Error de sincronización en vivo', e);
+  } finally {
+    syncInFlight = false;
   }
 }
+
+setInterval(syncNow, 20000);
 
 /* Cola de guardado: evita que dos llamadas a saveBoard() se ejecuten en
    paralelo. Sin esto, dos guardados encimados pueden calcular el merge
    sobre una base desactualizada y terminar borrando cambios válidos. */
 let saveInFlight = false;
 let saveQueued   = false;
+
+/* Si cierran la pestaña o recargan el navegador (F5) con un cambio
+   todavía sin confirmar guardado, ese cambio SÍ se pierde de verdad —
+   a diferencia del botón "Actualizar" (que fusiona), recargar el
+   navegador mata la página a medias. Avisamos con el diálogo nativo. */
+let hasPendingChanges = false;
+
+window.addEventListener('beforeunload', (e) => {
+  if(hasPendingChanges || saveInFlight){
+    e.preventDefault();
+    e.returnValue = '';
+  }
+});
 
 async function runSave(){
   if(saveInFlight){ saveQueued = true; return; }
@@ -1046,6 +1232,7 @@ async function runSave(){
 }
 
 function scheduleSave(){
+  hasPendingChanges = true;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(runSave, 500);
 }
@@ -1849,7 +2036,7 @@ $('#logoutBtn').addEventListener('click', () => {
   location.reload();
 });
 
-$('#refreshBtn').addEventListener('click', () => loadBoard());
+$('#refreshBtn').addEventListener('click', () => { showToast('Actualizando...'); syncNow(); });
 
 $('#videosBtn').addEventListener('click', () => {
   // Guarda el gistId en localStorage para que videos.html lo reutilice
