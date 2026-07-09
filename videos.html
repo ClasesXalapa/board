@@ -564,7 +564,7 @@ async function findOrCreateGist(){
     try{await ghFetch(`https://api.github.com/gists/${gistId}`);return gistId;}
     catch(e){gistId='';localStorage.removeItem(STORAGE_GIST_KEY);}
   }
-  const gists = await ghFetch('https://api.github.com/gists');
+  const gists = await ghFetch('https://api.github.com/gists?per_page=100');
   const found = gists.find(g=>g.description===GIST_DESC);
   if(found){
     gistId=found.id; localStorage.setItem(STORAGE_GIST_KEY,gistId); return gistId;
@@ -665,9 +665,29 @@ async function saveData(){
   }
 }
 
+/* Cola de guardado: evita que dos llamadas a saveData() se ejecuten en
+   paralelo. Sin esto, dos guardados encimados pueden calcular el merge
+   sobre una base desactualizada y terminar borrando cambios válidos. */
+let saveInFlight = false;
+let saveQueued   = false;
+
+async function runSave(){
+  if(saveInFlight){ saveQueued = true; return; }
+  saveInFlight = true;
+  try{
+    await saveData();
+  } finally {
+    saveInFlight = false;
+    if(saveQueued){
+      saveQueued = false;
+      runSave();
+    }
+  }
+}
+
 function scheduleSave(){
   clearTimeout(saveTimer);
-  saveTimer=setTimeout(saveData,500);
+  saveTimer=setTimeout(runSave,500);
 }
 
 /* ════════════════════════════

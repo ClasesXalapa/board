@@ -264,7 +264,7 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
       <div class="field">
         <label>Documento (Google Doc)</label>
         <select id="f_doc">
-          <option value="">— Selecciona un autor primero —</option>
+          <option value="">— Selecciona un documento —</option>
         </select>
         <div id="docManualWrap" class="hidden" style="margin-top:8px;">
           <input type="url" id="f_docManualUrl" placeholder="Pega el link del Google Doc">
@@ -329,18 +329,20 @@ main{ padding:24px 32px 60px; overflow-x:auto; display:flex; justify-content:cen
 <!-- Admin: documentos por autor -->
 <div class="overlay" id="adminOverlay">
   <div class="modal wide">
-    <h2>Documentos de Google Doc por autor</h2>
+    <h2>Documentos de Google Doc</h2>
     <div class="field">
       <label>Agregar documento</label>
-      <div class="row2">
-        <select id="admin_autor"><option value="">— Autor —</option></select>
-        <input type="text" id="admin_nombre" placeholder="Nombre (ej. Videos explicativos 2026)">
-      </div>
+      <input type="text" id="admin_nombre" placeholder="Nombre (ej. Videos explicativos 2026)">
       <input type="url" id="admin_url" placeholder="Link del Google Doc" style="margin-top:8px;">
       <button type="button" class="btn primary sm" id="adminAddDocBtn" style="margin-top:8px; width:100%;">+ Agregar documento</button>
     </div>
     <div class="field">
       <label>Documentos registrados</label>
+      <p style="font-size:11.5px; color:var(--text-muted); margin:0 0 8px;">
+        Los que tienen 🔒 están fijos en el código (nunca se pierden) y se agregan editando el
+        bloque <code>DOCUMENTOS_BASE</code> al inicio del archivo. Los demás se guardan en el Gist
+        y se pueden borrar aquí mismo.
+      </p>
       <div id="adminDocsList"></div>
     </div>
     <div class="modal-actions">
@@ -365,6 +367,48 @@ const COLUMNS = [
   { id:'final',    label:'Revisión final' },
   { id:'listo',    label:'Listo' },
 ];
+
+/* ════════════════════════════
+   DOCUMENTOS FIJOS (constantes)
+   ────────────────────────────────────────
+   Estos documentos viven directamente en el código, NO en el Gist.
+   Por eso nunca se pierden, sin importar qué pase con la sincronización:
+   siempre están disponibles apenas se carga la página.
+
+   Para agregar uno nuevo:
+   1. Copia una línea del arreglo de abajo.
+   2. Cambia "id" por algo único que empiece con "base-" (ej. "base-4").
+   3. Pon el nombre del documento y el link.
+   4. Guarda el archivo y súbelo a GitHub Pages (el mismo proceso de
+      siempre para publicar cambios).
+
+   Para "eliminar" uno: borra o comenta su línea y vuelve a publicar.
+   Esto reemplaza al botón de eliminar del panel de admin para estos
+   documentos fijos (por diseño no se pueden borrar desde la app, ya
+   que su fuente de verdad es este archivo, no el Gist).
+════════════════════════════ */
+const DOCUMENTOS_BASE = [
+  // { id:'base-1', nombre:'Guion base',         url:'https://docs.google.com/document/d/XXXXXXXX' },
+  // { id:'base-2', nombre:'Plantilla revisión',  url:'https://docs.google.com/document/d/XXXXXXXX' },
+  { id:'base-majo-metiche',    nombre:'Majo-Metiche',    url:'https://docs.google.com/document/d/1QKfkixYuqnT8ubOaMMWjAdXHt75H_61JwEpAdP6dMfU/edit?tab=t.0#heading=h.gb57j4mel0sr' },
+  { id:'base-majo-3ros',       nombre:'Majo-3ros',       url:'https://docs.google.com/document/d/1kI70ROJA5UjhZWu7XDOr2UowCsMcg0YtPKbcOL97nmE/edit?usp=sharing' },
+  { id:'base-habibeh-metiche', nombre:'Habibeh-Metiche', url:'https://docs.google.com/document/d/1xBZ6yPHrGcK8umBPyPrYJmhJQ9Ln5yKgYkznTgRXG94/edit?tab=t.0' },
+  { id:'base-habibeh-3ros',    nombre:'Habibeh-3ros',    url:'https://docs.google.com/document/d/1YAe_XYic8xDaB6jDBRBtBI55RAbanwcQOp0h25l004c/edit?usp=sharing' },
+];
+
+function isBaseDoc(d){ return typeof d.id === 'string' && d.id.indexOf('base-') === 0; }
+
+/* Combina los documentos fijos con los dinámicos (del Gist), evitando
+   duplicados por id. Los fijos siempre ganan y siempre están presentes. */
+function withBaseDocs(dynamicDocs){
+  const dynamic = (dynamicDocs || []).filter(d => !isBaseDoc(d));
+  return [...DOCUMENTOS_BASE, ...dynamic];
+}
+
+/* Devuelve solo la parte que sí vive en el Gist (para sincronizar/guardar) */
+function dynamicDocsOnly(docs){
+  return (docs || []).filter(d => !isBaseDoc(d));
+}
 
 let token         = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
 let gistId        = localStorage.getItem(STORAGE_GIST_KEY)  || '';
@@ -440,7 +484,7 @@ async function findOrCreateGist(){
     try{ await ghFetch(`https://api.github.com/gists/${gistId}`); return gistId; }
     catch(e){ gistId = ''; localStorage.removeItem(STORAGE_GIST_KEY); }
   }
-  const gists = await ghFetch('https://api.github.com/gists');
+  const gists = await ghFetch('https://api.github.com/gists?per_page=100');
   const found = gists.find(g => g.description === GIST_DESC);
   if(found){
     gistId = found.id;
@@ -484,13 +528,6 @@ function mergeList(remote, base, local, idKey){
   return Array.from(result.values());
 }
 
-function snapshotState(s){
-  return {
-    cards: JSON.parse(JSON.stringify(s.cards)),
-    docs: JSON.parse(JSON.stringify(s.docs))
-  };
-}
-
 async function loadAll(){
   setSync('loading');
   await findOrCreateGist();
@@ -507,16 +544,18 @@ async function loadAll(){
 
   // Cards de revisión
   const revFile = gist.files['revisiones.json'];
+  let dynamicDocs = [];
   if(revFile){
     try{
       const parsed = JSON.parse(revFile.content || '{"cards":[],"docs":[]}');
       state.cards = parsed.cards || [];
-      state.docs = parsed.docs || [];
-    }catch(e){ state.cards = []; state.docs = []; }
+      dynamicDocs = dynamicDocsOnly(parsed.docs || []);
+    }catch(e){ state.cards = []; dynamicDocs = []; }
   } else {
     state.cards = [];
-    state.docs = [];
+    dynamicDocs = [];
   }
+  state.docs = withBaseDocs(dynamicDocs);
   state.cards.forEach(c => {
     if(!c.estado) c.estado = 'trabajando';
     // Migración desde el modelo anterior de links múltiples a un solo documento
@@ -527,7 +566,9 @@ async function loadAll(){
     delete c.links;
   });
 
-  lastSynced = snapshotState(state);
+  // lastSynced solo lleva la parte dinámica de docs (lo fijo nunca se
+  // sincroniza contra el Gist, así que no debe entrar en el cálculo de merges).
+  lastSynced = { cards: JSON.parse(JSON.stringify(state.cards)), docs: JSON.parse(JSON.stringify(dynamicDocs)) };
   setSync('ok');
   populateFilterSelect();
   render();
@@ -543,16 +584,19 @@ async function saveState(){
     let remote = {};
     try{ remote = JSON.parse((revFile && revFile.content) || '{}'); }catch(e){ remote = {}; }
 
-    state = {
-      cards: mergeList(remote.cards, lastSynced.cards, state.cards, 'id'),
-      docs:  mergeList(remote.docs,  lastSynced.docs,  state.docs,  'id')
-    };
+    const mergedCards = mergeList(remote.cards, lastSynced.cards, state.cards, 'id');
+    const mergedDynamicDocs = mergeList(
+      dynamicDocsOnly(remote.docs), lastSynced.docs, dynamicDocsOnly(state.docs), 'id'
+    );
 
     await ghFetch(`https://api.github.com/gists/${gistId}`, {
       method: 'PATCH',
-      body: JSON.stringify({ files: { 'revisiones.json': { content: JSON.stringify(state, null, 2) } } })
+      body: JSON.stringify({ files: { 'revisiones.json': { content: JSON.stringify({ cards: mergedCards, docs: mergedDynamicDocs }, null, 2) } } })
     });
-    lastSynced = snapshotState(state);
+
+    state.cards = mergedCards;
+    state.docs = withBaseDocs(mergedDynamicDocs);
+    lastSynced = { cards: JSON.parse(JSON.stringify(mergedCards)), docs: JSON.parse(JSON.stringify(mergedDynamicDocs)) };
     render();
     setSync('ok');
   }catch(e){
@@ -562,9 +606,32 @@ async function saveState(){
   }
 }
 
+/* Cola de guardado: evita que dos llamadas a saveState() se ejecuten en
+   paralelo. Sin esto, dos guardados encimados (uno todavía esperando la
+   respuesta de red del otro) pueden calcular el merge sobre una base
+   desactualizada y terminar borrando cambios válidos — esto es lo que
+   causaba que los documentos "desaparecieran" tras varias horas de los
+   3 editores moviendo cosas al mismo tiempo. */
+let saveInFlight = false;
+let saveQueued   = false;
+
+async function runSave(){
+  if(saveInFlight){ saveQueued = true; return; }
+  saveInFlight = true;
+  try{
+    await saveState();
+  } finally {
+    saveInFlight = false;
+    if(saveQueued){
+      saveQueued = false;
+      runSave();
+    }
+  }
+}
+
 function scheduleSave(){
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(saveState, 500);
+  saveTimer = setTimeout(runSave, 500);
 }
 
 /* ════════════════════════════
@@ -845,19 +912,14 @@ function performMove(card, newCol, insertBeforeId){
 }
 
 /* ════════════════════════════
-   DOCUMENTO (select en cascada según autor)
+   DOCUMENTO (selector con todos los documentos disponibles)
 ════════════════════════════ */
-function populateDocSelectForAutor(autor, existingUrl){
+function populateDocSelect(existingUrl){
   const sel = $('#f_doc');
   $('#docManualWrap').classList.add('hidden');
   $('#f_docManualUrl').value = '';
 
-  if(!autor){
-    sel.innerHTML = '<option value="">— Selecciona un autor primero —</option>';
-    return;
-  }
-
-  const docs = state.docs.filter(d => d.autor === autor);
+  const docs = [...state.docs].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
   sel.innerHTML = docs.length > 0
     ? '<option value="">— Selecciona un documento —</option>'
     : '<option value="">— Sin documentos registrados —</option>';
@@ -886,10 +948,6 @@ function populateDocSelectForAutor(autor, existingUrl){
   }
 }
 
-$('#f_autor').addEventListener('change', () => {
-  populateDocSelectForAutor($('#f_autor').value, null);
-});
-
 $('#f_doc').addEventListener('change', () => {
   $('#docManualWrap').classList.toggle('hidden', $('#f_doc').value !== '__manual__');
 });
@@ -910,7 +968,7 @@ function openCardModal(id, initialCol){
   fillResponsableSelect($('#f_autor'), '— Selecciona —', '');
   fillResponsableSelect($('#f_revisor'), '— Sin asignar —', '');
   fillResponsableSelect($('#f_revisorPrevio'), '— Sin asignar —', '');
-  populateDocSelectForAutor('', null);
+  populateDocSelect(null);
 
   let col = initialCol || 'preprod';
 
@@ -926,7 +984,7 @@ function openCardModal(id, initialCol){
     fillResponsableSelect($('#f_revisorPrevio'), '— Sin asignar —', c.revisorPrevio || c.revisor || '');
     $('#f_estado').value = c.estado || 'pendiente';
     $('#cardDeleteBtn').style.display = 'inline-flex';
-    populateDocSelectForAutor(c.autor, c.docUrl || null);
+    populateDocSelect(c.docUrl || null);
   } else {
     $('#modalTitle').textContent = 'Nueva revisión';
     $('#f_estado').value = 'trabajando';
@@ -1170,14 +1228,13 @@ function generateReport(list, cols){
 }
 
 /* ════════════════════════════
-   ADMIN: DOCUMENTOS POR AUTOR
+   ADMIN: DOCUMENTOS
 ════════════════════════════ */
 $('#adminDocsBtn').addEventListener('click', () => {
   checkPassword().then(ok => { if(ok) openAdminOverlay(); });
 });
 
 function openAdminOverlay(){
-  fillResponsableSelect($('#admin_autor'), '— Autor —', '');
   $('#admin_nombre').value = '';
   $('#admin_url').value = '';
   renderAdminDocsList();
@@ -1193,20 +1250,17 @@ function renderAdminDocsList(){
     wrap.innerHTML = '<div class="no-docs-admin">Aún no hay documentos registrados.</div>';
     return;
   }
-  // Agrupar por autor para que sea fácil de leer
-  const porAutor = {};
-  state.docs.forEach(d => { (porAutor[d.autor] = porAutor[d.autor] || []).push(d); });
+  const sorted = [...state.docs].sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'));
 
-  wrap.innerHTML = Object.keys(porAutor).sort().map(autor => porAutor[autor].map(d => `
+  wrap.innerHTML = sorted.map(d => `
     <div class="admin-doc-row" data-id="${d.id}">
       <div class="admin-doc-info">
-        <span class="admin-doc-autor">${escapeHtml(autor)}</span>
-        <p class="admin-doc-nombre">${escapeHtml(d.nombre)}</p>
+        <p class="admin-doc-nombre">${isBaseDoc(d) ? '🔒 ' : ''}${escapeHtml(d.nombre)}</p>
         <a class="admin-doc-url" href="${escapeHtml(d.url)}" target="_blank" rel="noopener">${escapeHtml(d.url)}</a>
       </div>
-      <button type="button" class="admin-doc-remove" data-id="${d.id}" title="Eliminar">×</button>
+      ${isBaseDoc(d) ? '' : `<button type="button" class="admin-doc-remove" data-id="${d.id}" title="Eliminar">×</button>`}
     </div>
-  `).join('')).join('');
+  `).join('');
 
   wrap.querySelectorAll('.admin-doc-remove').forEach(btn => {
     btn.addEventListener('click', () => {
@@ -1220,16 +1274,14 @@ function renderAdminDocsList(){
 }
 
 $('#adminAddDocBtn').addEventListener('click', () => {
-  const autor = $('#admin_autor').value;
   const nombre = $('#admin_nombre').value.trim();
   const url = $('#admin_url').value.trim();
 
-  if(!autor){ toast('Selecciona un autor'); return; }
   if(!nombre){ toast('Ponle un nombre a este documento'); return; }
   if(!url){ toast('Pega el link del Google Doc'); return; }
   if(!isGoogleLink(url)){ toast('Debe ser un link de Google Docs o Drive'); return; }
 
-  state.docs.push({ id: uid(), autor, nombre, url });
+  state.docs.push({ id: uid(), nombre, url });
   $('#admin_nombre').value = '';
   $('#admin_url').value = '';
   renderAdminDocsList();
