@@ -871,6 +871,7 @@ const STORAGE_TOKEN_KEY = 'metiche_gh_token';
 const STORAGE_GIST_KEY = 'metiche_gist_id';
 
 let state = { tasks: [], resources: [], categories: [], responsables: [] };
+let lastSynced = { tasks: [], resources: [], categories: [], responsables: [] };
 let currentFilter = '';
 let token = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
 let gistId = localStorage.getItem(STORAGE_GIST_KEY) || '';
@@ -948,6 +949,35 @@ async function findOrCreateGist(){
   return gistId;
 }
 
+/* ---------- Merge helper ----------
+   Combina lo que hay en el Gist (remote) con lo último sincronizado (base)
+   y el estado local (local) para no perder cambios de otras personas
+   ni de esta sesión al guardar. Funciona con listas de objetos {id:...}
+   pasando idKey, o con listas de strings simples sin idKey.
+*/
+function mergeList(remote, base, local, idKey){
+  remote = remote || []; base = base || []; local = local || [];
+  const keyOf = idKey ? (x => x[idKey]) : (x => x);
+  const localKeys = new Set(local.map(keyOf));
+  const result = new Map();
+  remote.forEach(item => result.set(keyOf(item), item));
+  local.forEach(item => result.set(keyOf(item), item));
+  base.forEach(item => {
+    const k = keyOf(item);
+    if(!localKeys.has(k)) result.delete(k);
+  });
+  return Array.from(result.values());
+}
+
+function snapshotState(s){
+  return {
+    tasks: JSON.parse(JSON.stringify(s.tasks)),
+    resources: JSON.parse(JSON.stringify(s.resources)),
+    categories: [...s.categories],
+    responsables: [...s.responsables]
+  };
+}
+
 async function loadBoard(){
   setSync('loading');
   await findOrCreateGist();
@@ -958,6 +988,7 @@ async function loadBoard(){
   if(!state.resources) state.resources = [];
   if(!state.categories) state.categories = [];
   if(!state.responsables) state.responsables = [];
+  lastSynced = snapshotState(state);
   setSync('ok');
   render();
 }
@@ -965,12 +996,27 @@ async function loadBoard(){
 async function saveBoard(){
   setSync('saving');
   try{
+    // Antes de guardar, volvemos a leer el Gist para no pisar cambios
+    // que otra persona haya guardado mientras trabajábamos localmente.
+    const gist = await ghFetch(`https://api.github.com/gists/${gistId}`);
+    let remote = {};
+    try{ remote = JSON.parse(gist.files['board.json'].content || '{}'); }catch(e){ remote = {}; }
+
+    state = {
+      tasks:        mergeList(remote.tasks,        lastSynced.tasks,        state.tasks,        'id'),
+      resources:    mergeList(remote.resources,     lastSynced.resources,    state.resources,     'id'),
+      categories:   mergeList(remote.categories,    lastSynced.categories,   state.categories),
+      responsables: mergeList(remote.responsables,  lastSynced.responsables, state.responsables)
+    };
+
     await ghFetch(`https://api.github.com/gists/${gistId}`, {
       method: 'PATCH',
       body: JSON.stringify({
         files: { 'board.json': { content: JSON.stringify(state, null, 2) } }
       })
     });
+    lastSynced = snapshotState(state);
+    render();
     setSync('ok');
   }catch(e){
     setSync('error');

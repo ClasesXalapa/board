@@ -369,6 +369,7 @@ const COLUMNS = [
 let token         = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
 let gistId        = localStorage.getItem(STORAGE_GIST_KEY)  || '';
 let state         = { cards: [], docs: [] };
+let lastSynced    = { cards: [], docs: [] };
 let responsables  = [];
 let currentFilter = '';
 let currentAutorFilter = '';
@@ -462,6 +463,34 @@ async function findOrCreateGist(){
   return gistId;
 }
 
+/* ---------- Merge helper ----------
+   Combina lo que hay en el Gist (remote) con lo último sincronizado (base)
+   y el estado local (local) para no perder cambios de otras personas
+   ni de esta sesión al guardar. Esto es lo que evita que los documentos
+   por autor (u otras cards) desaparezcan cuando hay más de una persona
+   usando el board al mismo tiempo.
+*/
+function mergeList(remote, base, local, idKey){
+  remote = remote || []; base = base || []; local = local || [];
+  const keyOf = idKey ? (x => x[idKey]) : (x => x);
+  const localKeys = new Set(local.map(keyOf));
+  const result = new Map();
+  remote.forEach(item => result.set(keyOf(item), item));
+  local.forEach(item => result.set(keyOf(item), item));
+  base.forEach(item => {
+    const k = keyOf(item);
+    if(!localKeys.has(k)) result.delete(k);
+  });
+  return Array.from(result.values());
+}
+
+function snapshotState(s){
+  return {
+    cards: JSON.parse(JSON.stringify(s.cards)),
+    docs: JSON.parse(JSON.stringify(s.docs))
+  };
+}
+
 async function loadAll(){
   setSync('loading');
   await findOrCreateGist();
@@ -498,6 +527,7 @@ async function loadAll(){
     delete c.links;
   });
 
+  lastSynced = snapshotState(state);
   setSync('ok');
   populateFilterSelect();
   render();
@@ -506,10 +536,24 @@ async function loadAll(){
 async function saveState(){
   setSync('saving');
   try{
+    // Antes de guardar, volvemos a leer el Gist para no pisar cambios
+    // que otra persona haya guardado mientras trabajábamos localmente.
+    const gist = await ghFetch(`https://api.github.com/gists/${gistId}`);
+    const revFile = gist.files['revisiones.json'];
+    let remote = {};
+    try{ remote = JSON.parse((revFile && revFile.content) || '{}'); }catch(e){ remote = {}; }
+
+    state = {
+      cards: mergeList(remote.cards, lastSynced.cards, state.cards, 'id'),
+      docs:  mergeList(remote.docs,  lastSynced.docs,  state.docs,  'id')
+    };
+
     await ghFetch(`https://api.github.com/gists/${gistId}`, {
       method: 'PATCH',
       body: JSON.stringify({ files: { 'revisiones.json': { content: JSON.stringify(state, null, 2) } } })
     });
+    lastSynced = snapshotState(state);
+    render();
     setSync('ok');
   }catch(e){
     setSync('error');
@@ -603,6 +647,7 @@ function render(){
     colEl.innerHTML = `
       <div class="column-head">
         <div class="column-title">${col.label} <span class="col-count">${cards.length}</span></div>
+        ${col.id === 'listo' ? '<button class="btn ghost" id="clearListoBtn" style="font-size:11px; padding:5px 9px;">Limpiar</button>' : ''}
       </div>
       <div class="column-body" data-col="${col.id}"></div>
       <button class="add-card-btn" data-col="${col.id}">+ Añadir revisión</button>
@@ -640,6 +685,26 @@ function render(){
         openCardModal(null, btn.dataset.col);
       }
     });
+  });
+  const clearBtn = $('#clearListoBtn');
+  if(clearBtn){
+    clearBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      clearListoColumn();
+    });
+  }
+}
+
+function clearListoColumn(){
+  const listoCards = state.cards.filter(c => c.col === 'listo');
+  if(listoCards.length === 0){ toast('La columna Listo ya está vacía'); return; }
+  checkPassword().then(ok => {
+    if(!ok) return;
+    if(!confirm(`¿Eliminar ${listoCards.length} card(s) de Listo? Esta acción no se puede deshacer.`)) return;
+    state.cards = state.cards.filter(c => c.col !== 'listo');
+    render();
+    scheduleSave();
+    toast('Columna Listo vaciada');
   });
 }
 

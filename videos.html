@@ -518,6 +518,7 @@ const TIPO_CLASS        = {
 let token     = localStorage.getItem(STORAGE_TOKEN_KEY) || '';
 let gistId    = localStorage.getItem(STORAGE_GIST_KEY)  || '';
 let state     = { resources: [], categories: [], tipos: [] };
+let lastSynced = { resources: [], categories: [], tipos: [] };
 let saveTimer = null;
 let importPending = [];
 
@@ -581,6 +582,33 @@ async function findOrCreateGist(){
   gistId=created.id; localStorage.setItem(STORAGE_GIST_KEY,gistId); return gistId;
 }
 
+/* ---------- Merge helper ----------
+   Combina lo que hay en el Gist (remote) con lo último sincronizado (base)
+   y el estado local (local) para no perder cambios de otras personas
+   ni de esta sesión al guardar.
+*/
+function mergeList(remote, base, local, idKey){
+  remote = remote || []; base = base || []; local = local || [];
+  const keyOf = idKey ? (x => x[idKey]) : (x => x);
+  const localKeys = new Set(local.map(keyOf));
+  const result = new Map();
+  remote.forEach(item => result.set(keyOf(item), item));
+  local.forEach(item => result.set(keyOf(item), item));
+  base.forEach(item => {
+    const k = keyOf(item);
+    if(!localKeys.has(k)) result.delete(k);
+  });
+  return Array.from(result.values());
+}
+
+function snapshotState(s){
+  return {
+    resources: JSON.parse(JSON.stringify(s.resources)),
+    categories: [...s.categories],
+    tipos: [...s.tipos]
+  };
+}
+
 async function loadData(){
   setSync('loading');
   await findOrCreateGist();
@@ -598,6 +626,7 @@ async function loadData(){
   if(!state.resources)  state.resources  = [];
   if(!state.categories) state.categories = [];
   if(!state.tipos)      state.tipos      = ['Video','Imagen','Perfil','Documento','Audio','Otro'];
+  lastSynced = snapshotState(state);
   setSync('ok');
   renderTipoSelects();
   renderCatSelects();
@@ -607,12 +636,29 @@ async function loadData(){
 async function saveData(){
   setSync('saving');
   try{
+    // Antes de guardar, volvemos a leer el Gist para no pisar cambios
+    // que otra persona haya guardado mientras trabajábamos localmente.
+    const gist = await ghFetch(`https://api.github.com/gists/${gistId}`);
+    const file = gist.files['recursos.json'] || gist.files['videos.json'];
+    let remote = {};
+    try{ remote = JSON.parse((file && file.content) || '{}'); }catch(e){ remote = {}; }
+
+    state = {
+      resources:  mergeList(remote.resources,  lastSynced.resources,  state.resources,  'id'),
+      categories: mergeList(remote.categories, lastSynced.categories, state.categories),
+      tipos:      mergeList(remote.tipos,      lastSynced.tipos,      state.tipos)
+    };
+
     await ghFetch(`https://api.github.com/gists/${gistId}`,{
       method:'PATCH',
       body:JSON.stringify({
         files:{'recursos.json':{content:JSON.stringify(state,null,2)}}
       })
     });
+    lastSynced = snapshotState(state);
+    renderTipoSelects();
+    renderCatSelects();
+    renderBank();
     setSync('ok');
   }catch(e){
     setSync('error'); toast('No se pudo guardar. Revisa el token.'); console.error(e);
